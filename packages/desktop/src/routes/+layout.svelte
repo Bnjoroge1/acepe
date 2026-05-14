@@ -2,7 +2,6 @@
 import { ResultAsync } from "neverthrow";
 import { onMount } from "svelte";
 import { initializeHighlighter } from "$lib/acp/services/highlighter-pool.svelte.js";
-import { preInitializeMarkdown } from "$lib/acp/utils/markdown-renderer.js";
 import { registerCursorThemeForPierreDiffs } from "$lib/acp/utils/pierre-diffs-theme.js";
 import { initAnalytics } from "$lib/analytics.js";
 import ErrorBoundary from "$lib/components/error-boundary.svelte";
@@ -33,8 +32,6 @@ onMount(async () => {
 	// FileDiff gracefully falls back to main thread rendering until workers are ready
 	initializeHighlighter();
 
-	// Preload markdown renderer for faster first message rendering
-	preInitializeMarkdown();
 	// Note: Initial sync is triggered in +page.svelte AFTER the event listener
 	// is registered to avoid race conditions
 });

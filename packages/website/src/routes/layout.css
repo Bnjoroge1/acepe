@@ -1,20 +1,13 @@
 @import "@acepe/ui/design-tokens.css";
 @import "tailwindcss";
+@import "streamdown/styles.css";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is([data-theme="dark"] *));
 
-/* Acepe custom font - font files in static/fonts/ */
-@font-face {
-	font-family: "Acepe";
-	font-style: normal;
-	font-weight: 400;
-	src: url("/fonts/acepe.woff2") format("woff2");
-	font-display: swap;
-}
-
 @source "../**/*.{html,js,svelte,ts}";
 @source "../../../ui/src/**/*.{html,js,svelte,ts}";
+@source "../../../../node_modules/streamdown/dist/*.js";
 @source inline("text-success");
 
 :root {
@@ -60,9 +53,9 @@
 	--sidebar-ring: var(--token-brand-primary);
 
 	/* Font families */
-	--font-sans: Acepe, system-ui, sans-serif;
-	--font-serif: Merriweather, serif;
-	--font-mono: Fira Code, monospace;
+	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	--font-serif: ui-serif, Georgia, serif;
+	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
 	/* Shadows */
 	--shadow-x: 0px;
