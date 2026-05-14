@@ -126,7 +126,7 @@ const lastMessageTextGroupIndex = $derived.by(() => {
 const hasThinking = $derived(filteredThoughtGroups.length > 0);
 const hasMessageContent = $derived(groupedChunks.messageGroups.length > 0);
 const hasAnyContent = $derived(hasThinking || hasMessageContent);
-const showThinkingBlock = $derived(hasThinking && !hasMessageContent);
+const showThinkingBlock = $derived(hasThinking);
 
 let isCollapsed = $state(untrack(() => initiallyCollapsed));
 
