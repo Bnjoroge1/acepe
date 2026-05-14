@@ -99,10 +99,10 @@
 
 <AgentToolCard>
 	<!-- Row 1: status + result summary + duration + caret; row 2: query (always when present, including collapsed) -->
-	<div class="flex flex-col gap-1 px-2.5 py-1.5">
+	<div class="flex flex-col gap-0.5 px-2 py-1">
 		<button
 			type="button"
-			class="flex min-w-0 w-full items-center justify-between gap-2 border-0 bg-transparent p-0 text-left transition-colors {hasExpandableContent ? 'cursor-pointer hover:text-foreground' : 'cursor-default'}"
+			class="flex min-w-0 w-full items-center justify-between gap-1.5 border-0 bg-transparent p-0 text-left transition-colors {hasExpandableContent ? 'cursor-pointer hover:text-foreground' : 'cursor-default'}"
 			onclick={() => {
 				if (!hasExpandableContent) return;
 				isCollapsed = !isCollapsed;
@@ -110,20 +110,20 @@
 			aria-label={hasExpandableContent ? (isCollapsed ? ariaExpandResults : ariaCollapseResults) : undefined}
 			aria-expanded={hasExpandableContent ? !isCollapsed : undefined}
 		>
-			<div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm text-muted-foreground">
+			<div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm text-muted-foreground">
 				<ToolHeaderLeading kind="search" {status}>{headerLabel}</ToolHeaderLeading>
 				{#if resultText}
-					<ArrowRight size={11} weight="bold" class="shrink-0 text-muted-foreground" />
-					<span class="text-sm text-muted-foreground">{resultText}</span>
+					<ArrowRight size={10} weight="bold" class="shrink-0 text-muted-foreground" />
+					<span class="text-xs text-muted-foreground">{resultText}</span>
 				{/if}
 			</div>
-			<div class="flex shrink-0 items-center gap-2">
+			<div class="flex shrink-0 items-center gap-1.5">
 				{#if durationLabel}
-					<span class="pt-0.5 font-sans text-sm text-muted-foreground/70">{durationLabel}</span>
+					<span class="font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
 				{/if}
 				{#if hasExpandableContent}
 					<CaretRight
-						size={10}
+						size={9}
 						weight="bold"
 						class="shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
 					/>
@@ -131,9 +131,9 @@
 			</div>
 		</button>
 		{#if query}
-			<div class="min-w-0 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm">
-				<span class="text-sm text-muted-foreground/70">Query</span>
-				<code class="text-sm font-sans text-foreground whitespace-pre-wrap break-words">{query}</code>
+			<div class="min-w-0 grid grid-cols-[auto_1fr] gap-x-1.5 gap-y-0.5 text-xs">
+				<span class="text-xs text-muted-foreground/70">Query</span>
+				<code class="text-xs font-sans text-foreground whitespace-pre-wrap break-words">{query}</code>
 			</div>
 		{/if}
 	</div>

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-
-	import { TextShimmer } from "../text-shimmer/index.js";
+	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -13,21 +12,19 @@
 		children: Snippet;
 	}
 
-let { status = "done", disableShimmer = false, children }: Props = $props();
-	const isLoading = $derived(status === "pending" || status === "running");
-	const statusClass = $derived.by(() => {
-		if (status === "blocked") return "text-amber-600 dark:text-amber-400";
-		if (status === "degraded") return "text-orange-600 dark:text-orange-400";
-		if (status === "cancelled") return "text-muted-foreground/70";
-		if (status === "error") return "text-destructive";
-		return "text-muted-foreground";
-	});
+	let { status = "done", disableShimmer = false, children }: Props = $props();
+
+	const shouldShimmer = $derived(
+		!disableShimmer && (status === "running" || status === "pending" || status === "blocked")
+	);
 </script>
 
-<span class="shrink-0 text-sm tracking-normal {statusClass}">
-	{#if isLoading && !disableShimmer}
-		<TextShimmer>{@render children()}</TextShimmer>
-	{:else}
+{#if shouldShimmer}
+	<TextShimmer class="shrink-0 text-xs">
 		{@render children()}
-	{/if}
-</span>
+	</TextShimmer>
+{:else}
+	<span class="shrink-0 text-xs">
+		{@render children()}
+	</span>
+{/if}

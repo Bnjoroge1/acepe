@@ -3,7 +3,6 @@
 
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
-	import { TextShimmer } from "../text-shimmer/index.js";
 	import type { AgentToolStatus, LintDiagnostic } from "./types.js";
 
 	interface Props {
@@ -47,7 +46,7 @@
 
 	const isPending = $derived(status === "pending" || status === "running");
 	const labelText = $derived.by(() => {
-		if (status === "blocked") return "Blocked";
+		if (status === "blocked") return "Waiting for permission";
 		if (status === "degraded") return "Degraded";
 		if (status === "cancelled") return "Cancelled";
 		if (status === "error") return "Lint check failed";
@@ -88,18 +87,18 @@
 				{labelText}
 			</ToolHeaderLeading>
 			{#if isPending}
-				<TextShimmer class="text-muted-foreground" duration={1.2}>
+				<span>
 					<span class="truncate">Read Lints</span>
-				</TextShimmer>
+				</span>
 			{:else}
-				<span class="min-w-0 truncate text-muted-foreground">Read Lints</span>
+				<span class="min-w-0 truncate">Read Lints</span>
 			{/if}
 		</div>
 
 		{#if durationLabel || (!isPending && hasContent)}
 			<div class="ml-2 flex shrink-0 items-center gap-2">
 				{#if durationLabel}
-					<span class="font-sans text-sm text-muted-foreground/70">{durationLabel}</span>
+					<span class="text-sm">{durationLabel}</span>
 				{/if}
 				{#if !isPending && hasContent}
 					<button
@@ -123,22 +122,22 @@
 	<!-- Expandable content: summary + optional diagnostics list -->
 	{#if hasContent && isExpanded}
 		<div class="border-t border-border px-2.5 py-2">
-			<p class="text-sm text-muted-foreground">{summaryText}</p>
+			<p class="text-sm">{summaryText}</p>
 			{#if displayDiagnostics}
 				<ul class="mt-2 space-y-1.5 text-sm">
 					{#each displayDiagnostics as diag, i (i)}
 						<li class="flex flex-col gap-0.5 rounded border border-border/60 bg-muted/20 px-2 py-1.5">
 							{#if diag.filePath}
-								<span class="font-sans text-muted-foreground">{diag.filePath}</span>
+								<span>{diag.filePath}</span>
 							{/if}
 							{#if diag.line != null}
-								<span class="text-muted-foreground/80">Line {diag.line}</span>
+								<span>Line {diag.line}</span>
 							{/if}
 							{#if diag.message}
-								<span class="text-foreground">{diag.message}</span>
+								<span>{diag.message}</span>
 							{/if}
 							{#if diag.severity}
-								<span class="text-muted-foreground/70">{diag.severity}</span>
+								<span>{diag.severity}</span>
 							{/if}
 						</li>
 					{/each}

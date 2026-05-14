@@ -106,7 +106,7 @@ let {
 	awaitingApprovalLabel = "Awaiting Approval",
 	interruptedLabel = "Interrupted",
 	failedLabel = "Failed",
-	blockedLabel = "Blocked",
+	blockedLabel = "Waiting for permission",
 	cancelledLabel = "Cancelled",
 	degradedLabel = "Degraded",
 	pendingLabel = "Pending",
@@ -173,12 +173,12 @@ function expand() {
 </script>
 
 <AgentToolCard>
-	<!-- Header: fixed h-7 height to prevent layout shift -->
-	<div role="group" class="flex h-7 items-center justify-between pl-2.5 pr-2 text-sm">
+	<!-- Header: fixed h-6 height to prevent layout shift -->
+	<div role="group" class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
 		<!-- Left side: label + file info -->
-		<div class="flex items-center gap-1.5 truncate flex-1 min-w-0">
+		<div class="flex items-center gap-1 truncate flex-1 min-w-0">
 			{#if displayedFilePath && !hasMultipleDiffs}
-				<div class="flex items-center gap-1.5 min-w-0">
+				<div class="flex items-center gap-1 min-w-0">
 					<ToolHeaderLeading kind="edit" {status}>
 						{#if headerState === "editing"}
 							{editingLabel}
@@ -211,7 +211,7 @@ function expand() {
 					/>
 				</div>
 			{:else if hasMultipleDiffs}
-				<div class="flex items-center gap-1.5 min-w-0">
+				<div class="flex items-center gap-1 min-w-0">
 					<ToolHeaderLeading kind="edit" {status}>
 						{#if headerState === "editing"}
 							{editingLabel}
@@ -238,7 +238,7 @@ function expand() {
 					</span>
 				</div>
 			{:else if isPending}
-				<div class="flex items-center gap-1.5 min-w-0">
+				<div class="flex items-center gap-1 min-w-0">
 					<ToolHeaderLeading kind="edit" {status}>{editingLabel}</ToolHeaderLeading>
 				</div>
 			{/if}
@@ -246,20 +246,20 @@ function expand() {
 
 		<!-- Right side: elapsed label + expand button -->
 		{#if durationLabel || (!isPending && hasContent)}
-			<div class="ml-2 flex shrink-0 items-center gap-2">
+			<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
 				{#if durationLabel}
-					<span class="font-sans text-sm text-muted-foreground/70">{durationLabel}</span>
+					<span class="font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
 				{/if}
 				{#if !isPending && hasContent}
 					<button
 						type="button"
 						onclick={toggleExpand}
-						class="flex items-center justify-center p-1 rounded-sm bg-transparent border-none text-muted-foreground cursor-pointer transition-colors hover:bg-muted/50 hover:text-foreground"
+						class="flex items-center justify-center p-0.5 rounded-sm bg-transparent border-none text-muted-foreground cursor-pointer transition-colors hover:bg-muted/50 hover:text-foreground"
 						aria-label={isExpanded ? ariaCollapseDiff : ariaExpandDiff}
 						aria-expanded={isExpanded}
 					>
 						<CaretRight
-							size={10}
+							size={9}
 							weight="bold"
 							class="text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>

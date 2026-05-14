@@ -2,7 +2,6 @@
 	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
 	import { CaretRight, Robot } from "phosphor-svelte";
 	import { Colors } from "../../lib/colors.js";
-	import { TextShimmer } from "../text-shimmer/index.js";
 	import type { AgentToolStatus, AnyAgentEntry, AgentToolEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
@@ -45,18 +44,11 @@
 	const isDone = $derived(status === "done");
 	const titleText = $derived.by(() => {
 		if (isPending) return description ?? runningFallback;
-		if (status === "blocked") return description ?? "Blocked";
+		if (status === "blocked") return description ?? "Waiting for permission";
 		if (status === "degraded") return description ?? "Degraded";
 		if (status === "cancelled") return description ?? "Cancelled";
 		if (status === "error") return description ?? "Task failed";
 		return description ?? doneFallback;
-	});
-	const titleToneClass = $derived.by(() => {
-		if (status === "blocked") return "text-amber-600 dark:text-amber-400";
-		if (status === "degraded") return "text-orange-600 dark:text-orange-400";
-		if (status === "cancelled") return "text-muted-foreground/70";
-		if (status === "error") return "text-destructive";
-		return "text-muted-foreground";
 	});
 
 	const taskChildren = $derived(Array.from(children));
@@ -88,22 +80,22 @@
 	const headerContentClass = $derived(compact
 		? "flex min-w-0 flex-1 items-center justify-start gap-1"
 		: "flex min-w-0 flex-1 items-center justify-start gap-2");
-	const titleClass = $derived("font-sans text-sm");
+	const titleClass = $derived("text-sm");
 	const promptButtonClass = $derived(compact
-		? "w-full flex items-center gap-1 px-1 py-0.5 text-sm text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-		: "w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
+		? "w-full flex items-center gap-1 px-1 py-0.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
+		: "w-full flex items-center gap-2 px-2.5 py-1.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
 	const promptBodyClass = $derived(compact ? "px-1 pb-0.5" : "px-3 pb-2");
 	const promptContentClass = $derived(compact
-		? "text-sm text-muted-foreground whitespace-pre-wrap break-words leading-relaxed"
-		: "text-sm text-muted-foreground whitespace-pre-wrap break-words leading-relaxed");
+		? "text-sm whitespace-pre-wrap break-words"
+		: "text-sm whitespace-pre-wrap break-words");
 	const resultSectionClass = $derived(compact ? "border-t border-border/60" : "border-t border-border");
 	const resultButtonClass = $derived(compact
-		? "w-full flex items-center gap-1 px-1 py-0.5 text-sm text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-		: "w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
+		? "w-full flex items-center gap-1 px-1 py-0.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
+		: "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
 	const resultBodyClass = $derived(compact ? "px-1 pb-1" : "px-3 pb-3");
 	const resultContentClass = $derived(compact
-		? "text-sm bg-muted/30 rounded-sm p-1 whitespace-pre-wrap break-words leading-relaxed"
-		: "text-sm bg-muted/30 rounded-md p-3 whitespace-pre-wrap break-words leading-relaxed");
+		? "bg-muted/30 rounded-sm p-1 text-sm whitespace-pre-wrap break-words"
+		: "bg-muted/30 rounded-md p-3 text-sm whitespace-pre-wrap break-words");
 	const rowSectionClass = $derived(compact ? "border-t border-border/60 py-0.5" : "border-t border-border py-1.5");
 	const showLiveToolRow = $derived(!compact && hasChildren && lastToolCall !== null);
 	const tallyInline = $derived(false);
@@ -116,17 +108,11 @@
 		<div class={headerContentClass}>
 			<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
 			<span class={titleClass}>
-				{#if isPending}
-					<TextShimmer class="font-medium text-muted-foreground">
-						{titleText}
-					</TextShimmer>
-				{:else}
-					<span class="font-medium {titleToneClass}">{titleText}</span>
-				{/if}
+				<span>{titleText}</span>
 			</span>
 		</div>
 		{#if durationLabel}
-			<span class="shrink-0 font-sans text-sm text-muted-foreground/70">{durationLabel}</span>
+			<span class="shrink-0 text-sm">{durationLabel}</span>
 		{/if}
 		{#if shouldShowDoneIcon}
 			<IconCircleCheckFilled
@@ -149,7 +135,7 @@
 				weight="bold"
 				class="shrink-0 transition-transform duration-150 {isPromptCollapsed ? '' : 'rotate-90'}"
 			/>
-			<span class="truncate flex-1 text-left text-muted-foreground/80">
+			<span class="flex-1 truncate text-left">
 				{prompt.slice(0, 80)}{prompt.length > 80 ? "..." : ""}
 			</span>
 		</button>
@@ -176,9 +162,9 @@
 					weight="bold"
 					class="shrink-0 transition-transform duration-150 {isResultCollapsed ? '' : 'rotate-90'}"
 				/>
-				<span class="font-medium">{resultLabel}</span>
+				<span>{resultLabel}</span>
 				{#if isResultCollapsed}
-					<span class="text-muted-foreground/60 truncate flex-1 text-left">
+					<span class="flex-1 truncate text-left">
 						{resultText.slice(0, 100)}{resultText.length > 100 ? "..." : ""}
 					</span>
 				{/if}

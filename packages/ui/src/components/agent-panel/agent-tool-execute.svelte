@@ -70,7 +70,7 @@
 		if (isPending) {
 			return durationLabel ? `Executing for ${durationLabel}` : runningLabel;
 		}
-		if (status === "blocked") return "Blocked";
+		if (status === "blocked") return "Waiting for permission";
 		if (status === "degraded") return "Degraded";
 		if (status === "cancelled") return "Cancelled";
 		if (status === "error") return "Command failed";
@@ -103,19 +103,19 @@
 
 <AgentToolCard>
 	<!-- ── Header ── -->
-	<div class="flex h-7 items-center gap-2 px-2.5">
+	<div class="flex h-6 items-center gap-1.5 px-2">
 		<div class="flex-1 truncate">
 			<ToolHeaderLeading kind="execute" status={status}>
 				{headerText}
 			</ToolHeaderLeading>
 		</div>
 
-		<div class="ml-auto flex shrink-0 items-center gap-1.5">
+		<div class="ml-auto flex shrink-0 items-center gap-1">
 
 			{#if isSuccess}
-				<CheckCircle weight="fill" size={12} class="text-success" />
+				<CheckCircle weight="fill" size={11} class="text-success" />
 			{:else if isError}
-				<XCircle weight="fill" size={12} class="text-destructive" />
+				<XCircle weight="fill" size={11} class="text-destructive" />
 			{/if}
 
 			{#if !isPending && hasOutput}
@@ -129,7 +129,7 @@
 				>
 					<CaretDown
 						weight="fill"
-						size={10}
+						size={9}
 						class="transition-transform duration-150 {isExpanded
 							? 'rotate-180'
 							: ''}"
@@ -191,17 +191,17 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		padding: 4px 6px;
+		padding: 2px 4px;
 		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 	}
 
 	.execute-block {
 		font-family: var(--font-sans, system-ui, sans-serif);
-		font-size: 0.875rem;
-		line-height: 1.4;
+		font-size: 0.8125rem;
+		line-height: 1.35;
 		white-space: pre-wrap;
 		word-break: break-all;
-		padding: 2px 6px;
+		padding: 1px 6px;
 		border-radius: 3px;
 		background: var(--muted);
 	}
