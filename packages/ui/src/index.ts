@@ -130,8 +130,10 @@ export {
 	AgentToolSearch,
 	AgentToolSkill,
 	AgentToolTask,
+	AgentToolThinking,
 	AgentToolTodo,
 	AgentUserMessage,
+	ThinkingDotMatrix,
 	ToolTally,
 	TodoNumberIcon,
 } from "./components/agent-panel/index.js";

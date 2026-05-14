@@ -89,6 +89,10 @@
       "svelte": "./src/components/markdown/index.ts",
       "default": "./src/components/markdown/index.ts"
     },
+    "./streamdown-markdown": {
+      "svelte": "./src/components/streamdown-markdown/index.ts",
+      "default": "./src/components/streamdown-markdown/index.ts"
+    },
     "./markdown-prose.css": {
       "svelte": "./src/components/markdown/markdown-prose.css",
       "default": "./src/components/markdown/markdown-prose.css"
@@ -180,8 +184,9 @@
   },
   "scripts": {
     "check": "bunx tsc --noEmit -p tsconfig.json",
-    "test": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts')",
-    "test:run": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts')"
+    "test": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom",
+    "test:dom": "vitest run --config vitest.config.ts",
+    "test:run": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom"
   },
   "peerDependencies": {
     "bits-ui": "^2.14.4",
@@ -193,28 +198,33 @@
     "@lucide/svelte": "^0.562.0",
     "@paper-design/shaders": "^0.0.68",
     "@pierre/diffs": "1.1.3",
-    "@shikijs/markdown-it": "^3.20.0",
     "@tabler/icons-svelte": "^3.36.0",
     "@tanstack/svelte-query": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lru-cache": "^11.2.4",
-    "markdown-it": "^14.1.0",
     "neverthrow": "^8.2.0",
     "phosphor-svelte": "^3.1.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "shiki": "^3.22.0",
+    "streamdown": "2.5.0",
     "tailwind-merge": "^3.4.0",
     "tailwind-variants": "^3.2.2",
     "vaul-svelte": "^1.0.0-next.7"
   },
   "devDependencies": {
+    "@internationalized/date": "^3.10.0",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@testing-library/svelte": "^5.3.1",
     "@types/node": "^24",
-    "@internationalized/date": "^3.10.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "^19.2.3",
     "bun-types": "^1.3.5",
+    "happy-dom": "^20.8.9",
     "svelte": "^5.45.6",
     "tailwindcss": "^4.1.17",
-    "@types/markdown-it": "^14.1.2",
+    "vite": "^7.2.6",
     "vitest": "^4.0.16"
   }
 }

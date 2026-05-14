@@ -3,6 +3,8 @@
 		"target": "ESNext",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
+		"jsxImportSource": "react",
 		"types": ["bun-types", "node"],
 		"strict": true,
 		"esModuleInterop": true,
