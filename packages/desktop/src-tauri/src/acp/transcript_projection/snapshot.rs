@@ -104,6 +104,8 @@ pub enum TranscriptEntryRole {
 pub enum TranscriptSegment {
     #[serde(rename_all = "camelCase")]
     Text { segment_id: String, text: String },
+    #[serde(rename_all = "camelCase")]
+    Thought { segment_id: String, text: String },
 }
 
 fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<TranscriptSegment> {
@@ -131,9 +133,15 @@ fn segments_from_assistant_chunks(
                 .block
                 .text
                 .as_ref()
-                .map(|text| TranscriptSegment::Text {
-                    segment_id: format!("{entry_id}:chunk:{index}"),
-                    text: text.clone(),
+                .map(|text| match chunk.chunk_type.as_str() {
+                    "thought" => TranscriptSegment::Thought {
+                        segment_id: format!("{entry_id}:chunk:{index}"),
+                        text: text.clone(),
+                    },
+                    _ => TranscriptSegment::Text {
+                        segment_id: format!("{entry_id}:chunk:{index}"),
+                        text: text.clone(),
+                    },
                 })
         })
         .collect()

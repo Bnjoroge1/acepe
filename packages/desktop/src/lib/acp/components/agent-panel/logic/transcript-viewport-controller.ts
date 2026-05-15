@@ -247,6 +247,7 @@ function reduceRowsChanged(
 					sessionId: nextRowsState.sessionId,
 					generation: nextRowsState.generation,
 					anchorKey: nextRowsState.anchor.rowKey,
+					offsetPx: nextRowsState.anchor.offsetPx,
 				},
 			],
 		};
@@ -261,7 +262,8 @@ function reduceRowsChanged(
 function reduceUserScroll(
 	state: TranscriptViewportState,
 	measurement: TranscriptViewportMeasurement,
-	anchorKey: string | undefined
+	anchorKey: string | undefined,
+	anchorOffsetPx: number | undefined
 ): TranscriptViewportStep {
 	if (state.programmaticScrollInFlight && state.follow === "following") {
 		const settledAtTail = isNearTail(measurement);
@@ -321,13 +323,13 @@ function reduceUserScroll(
 			generation: state.generation,
 			renderer: state.renderer,
 			follow: "detached",
-			anchor:
+				anchor:
 				anchorKey === undefined
 					? {
 							type: "offset",
 							offsetPx: measurement.scrollOffset,
 					  }
-					: createRowAnchor(anchorKey, measurement.scrollOffset),
+					: createRowAnchor(anchorKey, anchorOffsetPx ?? measurement.scrollOffset),
 			rows: state.rows,
 			pendingSendReveal: state.pendingSendReveal,
 			programmaticScrollInFlight: false,
@@ -369,13 +371,14 @@ export function reduceTranscriptViewportEvent(
 		case "RowsChanged":
 			return reduceRowsChanged(state, event.rows);
 		case "UserScroll":
-			return reduceUserScroll(state, event.measurement, event.anchorKey);
+			return reduceUserScroll(state, event.measurement, event.anchorKey, event.anchorOffsetPx);
 		case "UserWheel":
 		case "UserNavigationScroll":
 			return reduceUserScroll(
 				withProgrammaticScrollInFlight(state, false),
 				event.measurement,
-				event.anchorKey
+				event.anchorKey,
+				event.anchorOffsetPx
 			);
 		case "ScrollMeasured":
 		case "ViewportResized":
@@ -537,6 +540,7 @@ export function reduceTranscriptViewportEvent(
 							sessionId: state.sessionId,
 							generation: state.generation,
 							anchorKey: state.anchor.rowKey,
+							offsetPx: state.anchor.offsetPx,
 						},
 					],
 				};
@@ -651,6 +655,7 @@ export function reduceTranscriptViewportEvent(
 							sessionId: state.sessionId,
 							generation: state.generation,
 							anchorKey: state.anchor.rowKey,
+							offsetPx: state.anchor.offsetPx,
 						},
 					],
 				};

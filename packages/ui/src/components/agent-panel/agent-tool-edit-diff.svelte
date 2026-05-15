@@ -51,6 +51,7 @@ let containerRef: HTMLDivElement | null = $state(null);
 let scrollContainerRef: HTMLDivElement | null = $state(null);
 let fileDiffInstance: FileDiff<never> | null = $state(null);
 let isDisposed = $state(false);
+let renderGeneration = 0;
 
 const isClickable = $derived(!isExpanded && !isStreaming);
 
@@ -129,13 +130,15 @@ async function renderDiff(
 	currentThemeNames: { dark: string; light: string }
 ): Promise<void> {
 	if (isDisposed) return;
+	renderGeneration += 1;
+	const generation = renderGeneration;
 
 	// Run optional pre-render hook (e.g. theme registration)
 	if (onBeforeRender) {
 		await onBeforeRender();
 	}
 
-	if (isDisposed) return;
+	if (isDisposed || generation !== renderGeneration) return;
 
 	// Clean up existing instance
 	if (fileDiffInstance) {
@@ -186,6 +189,7 @@ const containerClass = $derived.by(() => {
 
 onDestroy(() => {
 	isDisposed = true;
+	renderGeneration += 1;
 	if (fileDiffInstance) {
 		fileDiffInstance.cleanUp();
 		fileDiffInstance = null;

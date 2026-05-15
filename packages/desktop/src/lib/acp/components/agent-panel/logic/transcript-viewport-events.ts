@@ -40,16 +40,19 @@ export type TranscriptViewportEvent =
 			type: "UserWheel";
 			measurement: TranscriptViewportMeasurement;
 			anchorKey?: string;
+			anchorOffsetPx?: number;
 	  })
 	| (TranscriptViewportEventBase & {
 			type: "UserScroll";
 			measurement: TranscriptViewportMeasurement;
 			anchorKey?: string;
+			anchorOffsetPx?: number;
 	  })
 	| (TranscriptViewportEventBase & {
 			type: "UserNavigationScroll";
 			measurement: TranscriptViewportMeasurement;
 			anchorKey?: string;
+			anchorOffsetPx?: number;
 	  })
 	| (TranscriptViewportEventBase & {
 			type: "PublicScrollCommand";

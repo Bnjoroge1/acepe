@@ -73,6 +73,24 @@ function executeReadEffect(
 				anchorKey: effect.anchorKey,
 				fallbackOffsetPx: 0,
 			});
+			return;
+		}
+		const measurementOutcome = adapter.measureViewport();
+		if (measurementOutcome.type === "missing") {
+			adapter.reportEffectOutcome(skippedOutcome(effect, measurementOutcome.reason));
+			return;
+		}
+		const correctionPx = outcome.offsetPx - effect.offsetPx;
+		if (Math.abs(correctionPx) > 0.5) {
+			adapter.reportEffectOutcome(
+				adapter.applyScrollOffset({
+					type: "ApplyScrollOffset",
+					sessionId: effect.sessionId,
+					generation: effect.generation,
+					offsetPx: measurementOutcome.measurement.scrollOffset + correctionPx,
+					reason: "preserve-anchor",
+				})
+			);
 		}
 		return;
 	}

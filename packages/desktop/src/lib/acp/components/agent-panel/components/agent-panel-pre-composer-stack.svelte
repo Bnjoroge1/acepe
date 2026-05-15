@@ -89,6 +89,7 @@ let {
 	streamingShipData,
 	modifiedFilesState,
 	onEnterReviewMode,
+	onOpenReviewDialog,
 	onCreatePr,
 	createPrLabel,
 	onMergePr,
@@ -157,6 +158,7 @@ let {
 	streamingShipData: ShipCardData | null;
 	modifiedFilesState: ModifiedFilesState | null;
 	onEnterReviewMode: (s: ModifiedFilesState) => void;
+	onOpenReviewDialog?: (s: ModifiedFilesState, fileIndex: number) => void;
 	onCreatePr: ((config?: PrGenerationConfig) => void) | undefined;
 	createPrLabel: string | null;
 	onMergePr: (strategy: MergeStrategy) => void;
@@ -265,6 +267,7 @@ let {
 								{modifiedFilesState}
 								{sessionId}
 								onEnterReviewMode={onEnterReviewMode}
+								onOpenReviewDialog={onOpenReviewDialog}
 								onCreatePr={onCreatePr}
 								createPrLoading={createPrRunning}
 								{createPrLabel}

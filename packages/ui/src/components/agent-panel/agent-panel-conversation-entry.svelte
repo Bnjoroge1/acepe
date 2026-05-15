@@ -107,6 +107,7 @@
 		onSelect={(questionIndex, label, multiSelect) =>
 			onQuestionSelect?.({
 				entryId: entry.id,
+				interactionId: entry.interactionId,
 				questionIndex,
 				label,
 				multiSelect,

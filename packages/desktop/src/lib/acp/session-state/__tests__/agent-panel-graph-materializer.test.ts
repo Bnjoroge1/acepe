@@ -270,10 +270,14 @@ describe("agent panel graph materializer", () => {
 		});
 
 		expect(scene.conversation.entries).toHaveLength(2);
-		expect(scene.conversation.entries.map((entry) => entry.id)).toEqual(["user-1", "question-1"]);
+		expect(scene.conversation.entries.map((entry) => entry.id)).toEqual([
+			"user-1",
+			"interaction:question-1",
+		]);
 		expect(scene.conversation.entries[1]).toMatchObject({
-			id: "question-1",
+			id: "interaction:question-1",
 			type: "tool_call",
+			interactionId: "question-1",
 			title: "Question",
 			status: "running",
 			question: {
@@ -291,6 +295,48 @@ describe("agent panel graph materializer", () => {
 				],
 				multiSelect: false,
 			},
+		});
+	});
+
+	it("keeps question display identity separate from semantic interaction identity", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+		]);
+		const graph = createGraph({
+			transcriptSnapshot,
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "question-1",
+			},
+			interactions: [
+				createQuestionInteraction({
+					id: "question-1",
+					jsonRpcRequestId: 1,
+					replyHandler: {
+						kind: "json_rpc",
+						requestId: "1",
+					},
+				}),
+			],
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Question session",
+			},
+		});
+
+		expect(scene.conversation.entries[1]).toMatchObject({
+			id: "interaction:question-1",
+			type: "tool_call",
+			interactionId: "question-1",
+			title: "Question",
 		});
 	});
 
@@ -345,6 +391,40 @@ describe("agent panel graph materializer", () => {
 				],
 			},
 			isStreaming: false,
+		});
+	});
+
+	it("keeps transcript display identity when canonical operation tool id differs", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("transcript-tool-entry", "tool", "Run"),
+		]);
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [
+				createOperationSnapshot({
+					id: "operation-1",
+					tool_call_id: "provider-tool-call-1",
+					source_link: {
+						kind: "transcript_linked",
+						entry_id: "transcript-tool-entry",
+					},
+				}),
+			],
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "transcript-tool-entry",
+			type: "tool_call",
+			toolCallId: "provider-tool-call-1",
+			operationId: "operation-1",
 		});
 	});
 
@@ -552,6 +632,62 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("preserves canonical thought segments as assistant thought chunks", () => {
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([
+				{
+					entryId: "assistant-1",
+					role: "assistant",
+					segments: [
+						{
+							kind: "thought",
+							segmentId: "assistant-1:thought:1",
+							text: "checking the readme",
+						},
+						{
+							kind: "text",
+							segmentId: "assistant-1:text:1",
+							text: "Done.",
+						},
+					],
+					attemptId: null,
+				},
+			]),
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Done.",
+			message: {
+				chunks: [
+					{
+						type: "thought",
+						block: {
+							type: "text",
+							text: "checking the readme",
+						},
+					},
+					{
+						type: "message",
+						block: {
+							type: "text",
+							text: "Done.",
+						},
+					},
+				],
+			},
+		});
+	});
+
 	it("renders committed missing-operation tool rows as explicit degraded presentation", () => {
 		const graph = createGraph({
 			transcriptSnapshot: createTranscriptSnapshot([
@@ -756,6 +892,58 @@ describe("agent panel graph materializer", () => {
 			status: "pending",
 			title: "Tool pending",
 			presentationState: "pending_operation",
+		});
+	});
+
+	it("keeps unresolved tool diagnostics free of full transcript text", () => {
+		const originalWarn = console.warn;
+		const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(
+			globalThis,
+			"localStorage"
+		);
+		let warningDetails: { readonly entryText?: string; readonly entryId?: string } | null = null;
+		console.warn = (
+			message?: string,
+			details?: { readonly entryText?: string; readonly entryId?: string }
+		) => {
+			if (message === "[agent-panel] unresolved restored tool row") {
+				warningDetails = details ?? null;
+			}
+		};
+		Object.defineProperty(globalThis, "localStorage", {
+			configurable: true,
+			value: {
+				getItem: (key: string) => (key === "acepe:debug:unresolved-tools" ? "1" : null),
+			},
+		});
+
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([
+				createTranscriptEntry("tool-missing", "tool", "secret transcript text"),
+			]),
+			operations: [],
+			turnState: "Completed",
+		});
+
+		materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		console.warn = originalWarn;
+		if (originalLocalStorageDescriptor === undefined) {
+			Reflect.deleteProperty(globalThis, "localStorage");
+		} else {
+			Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
+		}
+
+		expect(warningDetails).toBeDefined();
+		expect(warningDetails).not.toHaveProperty("entryText");
+		expect(warningDetails).toMatchObject({
+			entryId: "tool-missing",
 		});
 	});
 

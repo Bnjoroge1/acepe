@@ -2619,6 +2619,9 @@ mod tests {
                 crate::acp::transcript_projection::TranscriptSegment::Text { text, .. } => {
                     text.as_str()
                 }
+                crate::acp::transcript_projection::TranscriptSegment::Thought { text, .. } => {
+                    text.as_str()
+                }
             })
             .collect::<String>();
 

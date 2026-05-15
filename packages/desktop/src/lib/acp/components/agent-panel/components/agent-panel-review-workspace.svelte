@@ -2,6 +2,7 @@
 import { ReviewWorkspace, resolveReviewWorkspaceSelectedIndex } from "@acepe/ui/agent-panel";
 
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
 import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
 import { buildReviewWorkspaceFilesFromSessionState } from "./review-workspace-model.js";
 
@@ -15,6 +16,9 @@ interface Props {
 	isActive?: boolean;
 	onClose: () => void;
 	onFileIndexChange: (index: number) => void;
+	showHeader?: boolean;
+	compact?: boolean;
+	diffDensity?: ReviewDiffDensity;
 }
 
 let {
@@ -25,6 +29,9 @@ let {
 	isActive = true,
 	onClose,
 	onFileIndexChange,
+	showHeader = true,
+	compact = false,
+	diffDensity = "default",
 }: Props = $props();
 
 const reviewWorkspaceFiles = $derived.by(() =>
@@ -44,6 +51,8 @@ const reviewWorkspaceSelectedIndex = $derived.by(() =>
 	headerLabel={"Review Changes"}
 	closeButtonLabel={"Back"}
 	emptyStateLabel={REVIEW_WORKSPACE_EMPTY_STATE_LABEL}
+	{showHeader}
+	{compact}
 >
 	{#snippet content()}
 		<AgentPanelReviewContent
@@ -52,6 +61,7 @@ const reviewWorkspaceSelectedIndex = $derived.by(() =>
 			{sessionId}
 			{projectPath}
 			{isActive}
+			{diffDensity}
 			{onClose}
 			{onFileIndexChange}
 		/>

@@ -80,11 +80,21 @@ function segmentText(entry: TranscriptEntry): string {
 	return text;
 }
 
+function assistantMarkdownText(entry: TranscriptEntry): string {
+	let text = "";
+	for (const segment of entry.segments) {
+		if (segment.kind === "text") {
+			text += segment.text;
+		}
+	}
+	return text;
+}
+
 function buildAssistantMessageFromTranscriptEntry(entry: TranscriptEntry) {
 	return {
 		chunks: entry.segments.map((segment) => {
 			return {
-				type: "message" as const,
+				type: segment.kind === "thought" ? ("thought" as const) : ("message" as const),
 				block: {
 					type: "text" as const,
 					text: segment.text,
@@ -183,7 +193,8 @@ function logUnresolvedToolDiagnostics(
 		lastEventSeq: graph.revision.lastEventSeq,
 		turnState: graph.turnState,
 		entryId: entry.entryId,
-		entryText: segmentText(entry),
+		entrySegmentCount: entry.segments.length,
+		entryTextLength: segmentText(entry).length,
 		toolTranscriptEntryCount: graph.transcriptSnapshot.entries.filter(
 			(candidate) => candidate.role === "tool"
 		).length,
@@ -412,12 +423,15 @@ function materializeOperationEntry(
 	operation: OperationSnapshot,
 	graph: SessionStateGraph,
 	index: OperationIndex,
-	visitedOperationIds: Set<string>
+	visitedOperationIds: Set<string>,
+	displayEntryId: string | null
 ): AgentPanelSceneEntryModel {
 	if (visitedOperationIds.has(operation.id)) {
 		return {
-			id: operation.tool_call_id,
+			id: displayEntryId ?? operation.tool_call_id,
 			type: "tool_call",
+			toolCallId: operation.tool_call_id,
+			operationId: operation.id,
 			kind: "other",
 			title: "Unresolved tool",
 			subtitle: "Operation cycle detected",
@@ -430,7 +444,9 @@ function materializeOperationEntry(
 	visitedOperationIds.add(operation.id);
 	const childEntries: AgentPanelSceneEntryModel[] = [];
 	for (const childOperation of collectChildOperations(operation, index)) {
-		childEntries.push(materializeOperationEntry(childOperation, graph, index, visitedOperationIds));
+		childEntries.push(
+			materializeOperationEntry(childOperation, graph, index, visitedOperationIds, null)
+		);
 	}
 	visitedOperationIds.delete(operation.id);
 
@@ -456,7 +472,12 @@ function materializeOperationEntry(
 		return mapped;
 	}
 
-	return applySceneTextLimits(mapped);
+	return applySceneTextLimits({
+		...mapped,
+		id: displayEntryId ?? mapped.id,
+		toolCallId: operation.tool_call_id,
+		operationId: operation.id,
+	});
 }
 
 function materializeMissingToolEntry(
@@ -508,7 +529,7 @@ function materializeTranscriptEntry(
 		return {
 			id: entry.entryId,
 			type: "assistant",
-			markdown: segmentText(entry),
+			markdown: assistantMarkdownText(entry),
 			message: buildAssistantMessageFromTranscriptEntry(entry),
 			isStreaming: isStreaming,
 		};
@@ -521,7 +542,7 @@ function materializeTranscriptEntry(
 			return materializeMissingToolEntry(entry, graph);
 		}
 
-		return materializeOperationEntry(operation, graph, index, new Set<string>());
+		return materializeOperationEntry(operation, graph, index, new Set<string>(), entry.entryId);
 	}
 
 	return {
@@ -557,8 +578,9 @@ function questionInteractionToSceneEntry(
 	}
 
 	return {
-		id: interaction.id,
+		id: `interaction:${interaction.id}`,
 		type: "tool_call",
+		interactionId: interaction.id,
 		kind: "other",
 		title: "Question",
 		subtitle: question.question,

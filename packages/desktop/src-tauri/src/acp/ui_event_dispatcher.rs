@@ -1087,11 +1087,10 @@ impl DispatcherState {
                 // command-handler synthetic-user path) cannot interleave their
                 // journal writes or wire emissions with ours for the same
                 // session. Plan: sub-task 1a.
-                let session_lock_guard = if let Some(session_id) = event.session_id.as_deref() {
-                    Some(journal_write_lock_registry.lock_for(session_id))
-                } else {
-                    None
-                };
+                let session_lock_guard = event
+                    .session_id
+                    .as_deref()
+                    .map(|session_id| journal_write_lock_registry.lock_for(session_id));
                 let _journal_guard = if let Some(lock) = session_lock_guard.as_ref() {
                     Some(lock.lock().await)
                 } else {
@@ -2423,6 +2422,7 @@ mod tests {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
+                        "lastAgentMessageId".to_string(),
                     ]
                 );
             }
@@ -2655,6 +2655,12 @@ mod tests {
                             } => {
                                 rendered.push_str(text);
                             }
+                            crate::acp::transcript_projection::TranscriptSegment::Thought {
+                                text,
+                                ..
+                            } => {
+                                rendered.push_str(text);
+                            }
                         }
                     }
                 }
@@ -2671,6 +2677,10 @@ mod tests {
                                         text,
                                         ..
                                     } => rendered.push_str(text),
+                                    crate::acp::transcript_projection::TranscriptSegment::Thought {
+                                        text,
+                                        ..
+                                    } => rendered.push_str(text),
                                 }
                             }
                         }
@@ -2682,6 +2692,10 @@ mod tests {
                             assert_eq!(entry_id, "assistant-1");
                             match segment {
                                 crate::acp::transcript_projection::TranscriptSegment::Text {
+                                    text,
+                                    ..
+                                } => rendered.push_str(text),
+                                crate::acp::transcript_projection::TranscriptSegment::Thought {
                                     text,
                                     ..
                                 } => rendered.push_str(text),

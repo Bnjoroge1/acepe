@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.5.15] - 2026-05-15
+
+### Added
+- Transcript viewport flight recording and regression tests now cover follow-mode intent, row reveal, and virtualized scrolling behavior
+- Canonical thought segments now persist through session journals, transcript snapshots, and replay materialization
+- Thinking block UI now uses a quiet line treatment with label-sized content text
+
+### Changed
+- Agent panel scrolling now routes through the deterministic transcript viewport controller instead of the legacy auto-scroll and thread-follow paths
+- Review and modified-file surfaces are more compact and keep the main panel structure stable while reviewing changes
+- Streamdown markdown rendering now has more polished tables and code blocks, including stable syntax-highlighting wrappers
+
+### Fixed
+- Sending a message no longer hides the active thinking/planning block by snapping back to the user message
+- Loaded Claude sessions preserve completed thinking blocks even after answer text exists
+- Review diff rendering now guards against malformed null-line diff events instead of crashing the review view
+- Expanded edit tool diffs no longer flicker in and out during scroll and resize churn
+
 ## [2026.5.10] - 2026-05-10
 
 ### Added

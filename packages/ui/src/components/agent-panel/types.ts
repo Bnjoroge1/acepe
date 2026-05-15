@@ -106,6 +106,9 @@ export interface AgentSearchMatch {
 export interface AgentToolEntry {
 	id: string;
 	type: "tool_call";
+	toolCallId?: string;
+	operationId?: string;
+	interactionId?: string;
 	kind?: AgentToolKind;
 	title: string;
 	subtitle?: string;
@@ -229,6 +232,7 @@ export interface AgentQuestion {
 
 export interface AgentPanelQuestionSelectEvent {
 	entryId: string;
+	interactionId?: string;
 	questionIndex: number;
 	label: string;
 	multiSelect?: boolean;

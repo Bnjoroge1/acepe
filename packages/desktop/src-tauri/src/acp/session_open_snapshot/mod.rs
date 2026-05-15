@@ -494,7 +494,7 @@ pub async fn session_open_result_from_thread_snapshot(
         sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
     let interactions = sanitize_interactions_for_historical_open(interactions);
     warn_unresolved_tool_rows_in_open_graph(
-        &canonical_session_id,
+        canonical_session_id,
         &replay_context.agent_id,
         &transcript_snapshot,
         &operations,

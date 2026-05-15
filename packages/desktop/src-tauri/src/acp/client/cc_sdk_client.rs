@@ -1548,6 +1548,15 @@ async fn run_streaming_bridge(
                                 pending_creation_promoted = true;
                                 observed_provider_session_id =
                                     Some(provider_session_id.to_string());
+                                dispatch_cc_sdk_update(
+                                    &dispatcher,
+                                    &task_reconciler,
+                                    provider.as_ref(),
+                                    promoted_claude_connection_complete_update(
+                                        app_handle.as_ref(),
+                                        &session_id,
+                                    ),
+                                );
                                 for buffered_update in buffered_pending_creation_updates.drain(..) {
                                     dispatch_cc_sdk_update(
                                         &dispatcher,
@@ -2390,6 +2399,24 @@ fn promoted_claude_session_capabilities(
             snapshot.config_options,
         ),
         autonomous_enabled,
+    }
+}
+
+fn promoted_claude_connection_complete_update(
+    app_handle: Option<&AppHandle>,
+    session_id: &str,
+) -> SessionUpdate {
+    let capabilities = promoted_claude_session_capabilities(app_handle, session_id);
+    SessionUpdate::ConnectionComplete {
+        session_id: session_id.to_string(),
+        attempt_id: 0,
+        models: capabilities
+            .models
+            .unwrap_or_else(default_session_model_state),
+        modes: capabilities.modes.unwrap_or_else(default_modes),
+        available_commands: capabilities.available_commands,
+        config_options: capabilities.config_options,
+        autonomous_enabled: capabilities.autonomous_enabled,
     }
 }
 
@@ -6595,12 +6622,26 @@ mod tests {
         assert_eq!(row.history_session_id(), "provider-canonical");
 
         let captured = sink.lock().expect("sink lock");
-        assert!(captured.iter().any(|event| match &event.payload {
-            crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => {
-                matches!(update.as_ref(), SessionUpdate::AgentMessageChunk { .. })
-            }
-            _ => false,
-        }));
+        let session_updates = captured
+            .iter()
+            .filter_map(|event| match &event.payload {
+                crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => {
+                    Some(update.as_ref())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            matches!(
+                session_updates.first(),
+                Some(SessionUpdate::ConnectionComplete { session_id, .. })
+                    if session_id == "provider-canonical"
+            ),
+            "deferred Claude creation must publish connectionComplete before buffered transcript updates"
+        );
+        assert!(session_updates
+            .iter()
+            .any(|update| matches!(update, SessionUpdate::AgentMessageChunk { .. })));
     }
 
     #[tokio::test]

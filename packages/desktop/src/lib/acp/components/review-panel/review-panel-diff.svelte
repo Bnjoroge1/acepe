@@ -4,6 +4,7 @@ import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import {
 	type ReviewDiffData,
+	type ReviewDiffDensity,
 	ReviewDiffViewState,
 } from "../modified-files/components/review-diff-view-state.svelte.js";
 import type { ModifiedFileEntry } from "../modified-files/types/modified-file-entry.js";
@@ -17,6 +18,7 @@ interface Props {
 	onHunkReject?: (hunkIndex: number, oldContent: string) => void;
 	/** Called when diff is ready so parent can wire bottom widget controls. */
 	onDiffStateReady?: (state: ReviewDiffViewState) => void;
+	density?: ReviewDiffDensity;
 }
 
 let {
@@ -26,6 +28,7 @@ let {
 	onHunkAccept,
 	onHunkReject,
 	onDiffStateReady,
+	density = "default",
 }: Props = $props();
 
 let containerRef: HTMLDivElement | null = $state(null);
@@ -67,7 +70,8 @@ function renderDiff(container: HTMLDivElement): void {
 			diffData,
 			container,
 			undefined, // onStyleChange
-			handleHunkAction
+			handleHunkAction,
+			density
 		)
 		.then(() => {
 			onDiffStateReady?.(diffViewState);

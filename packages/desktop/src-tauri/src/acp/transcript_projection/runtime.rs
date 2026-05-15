@@ -193,6 +193,41 @@ impl SessionTranscriptProjection {
                     Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
                 }
             }
+            SessionUpdate::AgentThoughtChunk {
+                chunk, message_id, ..
+            } => {
+                let text = text_from_block(&chunk.content)?;
+                let entry_id = message_id.clone().unwrap_or_else(|| {
+                    self.synthetic_assistant_entry_id_for_current_turn(event_seq)
+                });
+                let segment = TranscriptSegment::Thought {
+                    segment_id: format!("{entry_id}:segment:{event_seq}"),
+                    text,
+                };
+                let target_entry_id =
+                    self.resolve_assistant_entry_id_for_event(entry_id.as_str(), event_seq);
+                if self.entry_indexes.contains_key(&target_entry_id) {
+                    self.append_segment(
+                        target_entry_id.clone(),
+                        TranscriptEntryRole::Assistant,
+                        segment.clone(),
+                    );
+                    Some(vec![TranscriptDeltaOperation::AppendSegment {
+                        entry_id: target_entry_id,
+                        role: TranscriptEntryRole::Assistant,
+                        segment,
+                    }])
+                } else {
+                    let entry = TranscriptEntry {
+                        entry_id: target_entry_id,
+                        role: TranscriptEntryRole::Assistant,
+                        segments: vec![segment],
+                        attempt_id: None,
+                    };
+                    self.upsert_entry(entry.clone());
+                    Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
+                }
+            }
             SessionUpdate::ToolCall { tool_call, .. } => {
                 if should_skip_unanswered_question_tool_row(tool_call) {
                     return None;
@@ -412,6 +447,34 @@ mod tests {
             TranscriptDeltaOperation::AppendSegment { entry_id, role, .. }
                 if entry_id == "assistant-1" && role == &TranscriptEntryRole::Assistant
         ));
+    }
+
+    #[test]
+    fn thought_chunk_projects_as_canonical_thought_segment() {
+        let registry = TranscriptProjectionRegistry::new();
+        let delta = registry
+            .apply_session_update(
+                7,
+                &SessionUpdate::AgentThoughtChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "checking the readme".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    part_id: Some("thinking-part-1".to_string()),
+                    message_id: Some("assistant-1".to_string()),
+                    session_id: Some("session-1".to_string()),
+                },
+            )
+            .expect("thought delta");
+
+        let value = serde_json::to_value(&delta.operations[0]).expect("serialized operation");
+
+        assert_eq!(value["kind"], "appendEntry");
+        assert_eq!(value["entry"]["role"], "assistant");
+        assert_eq!(value["entry"]["segments"][0]["kind"], "thought");
+        assert_eq!(value["entry"]["segments"][0]["text"], "checking the readme");
     }
 
     #[test]

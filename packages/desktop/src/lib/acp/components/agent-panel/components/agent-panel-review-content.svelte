@@ -10,6 +10,7 @@ import {
 } from "../../../store/session-review-state-store.svelte.js";
 import type { ModifiedFileEntry } from "../../../types/modified-file-entry.js";
 import type { ReviewDiffViewState } from "../../modified-files/components/review-diff-view-state.svelte.js";
+import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
 import type { ModifiedFilesState } from "../../modified-files/types/modified-files-state.js";
 import ReviewBottomWidget from "../../review-panel/review-bottom-widget.svelte";
 import ReviewPanelDiff from "../../review-panel/review-panel-diff.svelte";
@@ -33,6 +34,7 @@ interface Props {
 	onFileIndexChange: (index: number) => void;
 	isActive?: boolean;
 	onExpandToFullscreen?: () => void;
+	diffDensity?: ReviewDiffDensity;
 }
 
 let {
@@ -44,6 +46,7 @@ let {
 	onFileIndexChange,
 	isActive = true,
 	onExpandToFullscreen: _onExpandToFullscreen = undefined,
+	diffDensity = "default",
 }: Props = $props();
 
 let diffViewStateRef = $state<ReviewDiffViewState | null>(null);
@@ -393,6 +396,7 @@ $effect(() => {
 				file={selectedFile}
 				projectPath={projectPath ?? undefined}
 				{isActive}
+				density={diffDensity}
 				onHunkAccept={handleHunkAccept}
 				onHunkReject={handleHunkReject}
 				onDiffStateReady={handleDiffStateReady}

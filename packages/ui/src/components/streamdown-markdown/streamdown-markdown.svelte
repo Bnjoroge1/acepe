@@ -12,13 +12,14 @@
 	import { createRoot, type Root } from "react-dom/client";
 	import { errAsync, ResultAsync } from "neverthrow";
 	import {
-		CodeBlock,
 		Streamdown,
+		defaultRemarkPlugins,
 		type Components,
 		type ExtraProps,
 		type StreamdownProps,
 		useIsCodeFenceIncomplete,
 	} from "streamdown";
+	import type { ThemeRegistrationAny } from "shiki";
 	import { buildChipShellClassName } from "../chip/index.js";
 	import {
 		extensionToIcon,
@@ -53,6 +54,7 @@
 	type AnchorProps = ComponentProps<"a"> & ExtraProps;
 	type CodeProps = ComponentProps<"code"> & ExtraProps & { readonly "data-block"?: string | boolean };
 	type InlineCodeProps = ComponentProps<"code"> & ExtraProps;
+	type TableProps = ComponentProps<"table"> & ExtraProps;
 	type MarkdownNode = {
 		type: string;
 		value?: string;
@@ -67,6 +69,10 @@
 		readonly label: string;
 		readonly href: string;
 	};
+	type CursorCodeThemes = {
+		readonly dark: ThemeRegistrationAny;
+		readonly light: ThemeRegistrationAny;
+	};
 
 	const KNOWN_FILE_EXTENSION_GROUP = Object.keys(extensionToIcon)
 		.map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
@@ -75,6 +81,32 @@
 	const CODE_LANGUAGE_PATTERN = /(?:^|\s)language-(?<language>[^\s]+)/u;
 	const CODE_START_LINE_META_PATTERN = /startLine=(\d+)/u;
 	const CODE_NO_LINE_NUMBERS_META_PATTERN = /\bnoLineNumbers\b/u;
+	const CODE_LANGUAGE_ALIAS: Record<string, string> = {
+		bash: "sh",
+		shell: "sh",
+		zsh: "sh",
+		javascript: "js",
+		typescript: "ts",
+		golang: "go",
+	};
+	const CODE_LANGUAGE_LABEL: Record<string, string> = {
+		css: "CSS",
+		go: "Go",
+		html: "HTML",
+		js: "JavaScript",
+		json: "JSON",
+		jsonc: "JSONC",
+		md: "Markdown",
+		py: "Python",
+		rs: "Rust",
+		sh: "Shell",
+		sql: "SQL",
+		svelte: "Svelte",
+		ts: "TypeScript",
+		tsx: "TSX",
+		yaml: "YAML",
+		yml: "YAML",
+	};
 	const FILE_PATH_IN_TEXT_PATTERN = new RegExp(
 		`(?<!\\S)(\\/?(?:[^/\\s]+\\/)+[^/\\s]+\\.(?:${KNOWN_FILE_EXTENSION_GROUP})(?::\\d+(?::\\d+)?)?)(?!\\S)`,
 		"giu"
@@ -86,7 +118,9 @@
 	const GITHUB_PR_SHORTHAND_PATTERN = /\b([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)#(\d+)\b/gu;
 	const GITHUB_URL_PATTERN =
 		/https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)\/(pull|issues?)\/(\d+)/giu;
-	const ACEPE_CHIP_REMARK_PLUGINS = [acepeInlineReferenceRemarkPlugin];
+	const ACEPE_REMARK_PLUGINS =
+		Object.values(defaultRemarkPlugins).concat(acepeInlineReferenceRemarkPlugin);
+	let cursorCodeThemesPromise: Promise<CursorCodeThemes> | null = null;
 
 	function isExternalUrl(href: string): boolean {
 		return href.startsWith("http://") || href.startsWith("https://");
@@ -102,6 +136,25 @@
 		}
 
 		return CODE_LANGUAGE_PATTERN.exec(className)?.groups?.language ?? "";
+	}
+
+	function normalizeCodeLanguage(language: string): string {
+		const normalized = language.trim().toLowerCase();
+		return CODE_LANGUAGE_ALIAS[normalized] ?? normalized;
+	}
+
+	function getCodeLanguageLabel(language: string): string {
+		if (language.length === 0) {
+			return "Text";
+		}
+		return CODE_LANGUAGE_LABEL[language] ?? language;
+	}
+
+	function getCodeLanguageIconSrc(language: string): string {
+		if (language.length === 0) {
+			return getFallbackIconSrc();
+		}
+		return getFileIconSrc(language);
 	}
 
 	function extractCodeMetaString(props: CodeProps): string | undefined {
@@ -138,6 +191,44 @@
 		return ResultAsync.fromPromise(
 			clipboard.writeText(text),
 			(error) => new Error(`Failed to copy code block: ${String(error)}`)
+		);
+	}
+
+	function fetchCursorTheme(path: string, label: string): ResultAsync<ThemeRegistrationAny, Error> {
+		const href =
+			typeof window === "undefined" ? path : new URL(path, window.location.origin).toString();
+		return ResultAsync.fromPromise(
+			fetch(href).then((response) => {
+				if (!response.ok) {
+					throw new Error(`Failed to load ${label} Cursor theme: ${response.status}`);
+				}
+				return response.json() as Promise<ThemeRegistrationAny>;
+			}),
+			(error) => (error instanceof Error ? error : new Error(String(error)))
+		);
+	}
+
+	function loadCursorCodeThemes(): ResultAsync<CursorCodeThemes, Error> {
+		if (cursorCodeThemesPromise === null) {
+			cursorCodeThemesPromise = fetchCursorTheme("/themes/cursor-light.theme.json", "light")
+				.andThen((light) =>
+					fetchCursorTheme("/themes/cursor.theme.json", "dark").map((dark) => ({
+						dark,
+						light,
+					}))
+				)
+				.match(
+					(themes) => themes,
+					(error) => {
+						cursorCodeThemesPromise = null;
+						throw error;
+					}
+				);
+		}
+
+		return ResultAsync.fromPromise(
+			cursorCodeThemesPromise,
+			(error) => (error instanceof Error ? error : new Error(String(error)))
 		);
 	}
 
@@ -475,6 +566,131 @@
 		);
 	}
 
+	function AcepeCodeBlock({
+		className,
+		code,
+		isIncomplete,
+		language,
+		lineNumbers,
+		startLine,
+		children,
+	}: {
+		readonly className: string | undefined;
+		readonly code: string;
+		readonly isIncomplete: boolean;
+		readonly language: string;
+		readonly lineNumbers: boolean;
+		readonly startLine: number | undefined;
+		readonly children: ReactNode;
+	}) {
+		const normalizedLanguage = normalizeCodeLanguage(language);
+		const languageLabel = getCodeLanguageLabel(normalizedLanguage);
+		const languageIconSrc = getCodeLanguageIconSrc(normalizedLanguage);
+		const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
+
+		useEffect(() => {
+			let cancelled = false;
+			setHighlightedHtml(null);
+
+			if (isIncomplete) {
+				return () => {
+					cancelled = true;
+				};
+			}
+
+			void ResultAsync.fromPromise(
+				import("shiki"),
+				(error) => new Error(`Failed to load code highlighter: ${String(error)}`)
+			)
+				.andThen((shiki) =>
+					loadCursorCodeThemes().andThen((themes) =>
+						ResultAsync.fromPromise(
+							shiki.codeToHtml(code, {
+								lang: normalizedLanguage || "text",
+								themes: {
+									light: themes.light,
+									dark: themes.dark,
+								},
+								defaultColor: false,
+							}),
+							(error) => new Error(`Failed to highlight code block: ${String(error)}`)
+						)
+					)
+				)
+				.match(
+					(html) => {
+						if (!cancelled) {
+							setHighlightedHtml(html);
+						}
+					},
+					(error) => {
+						console.error(error.message);
+					}
+				);
+
+			return () => {
+				cancelled = true;
+			};
+		}, [code, isIncomplete, normalizedLanguage]);
+
+		const codeStyle =
+			lineNumbers && startLine !== undefined
+				? { counterReset: `line ${startLine - 1}` }
+				: lineNumbers
+					? { counterReset: "line" }
+					: undefined;
+
+		return createElement(
+			"div",
+			{
+				className,
+				"data-language": normalizedLanguage,
+				"data-streamdown": "code-block",
+			},
+			createElement(
+				"div",
+				{
+					"data-acepe-code-language": normalizedLanguage || "text",
+					"data-streamdown": "code-block-header",
+				},
+				createElement(
+					"div",
+					{ className: "acepe-code-language-badge" },
+					createElement("img", {
+						alt: "",
+						className: "acepe-code-language-icon",
+						src: languageIconSrc,
+					}),
+					createElement("span", null, languageLabel)
+				),
+				createElement(
+					"div",
+					{ "data-streamdown": "code-block-actions" },
+					children
+				)
+			),
+			createElement(
+				"div",
+				{
+					className: `language-${normalizedLanguage || "text"}`,
+					"data-streamdown": "code-block-body",
+				},
+				highlightedHtml
+					? createElement("div", {
+							"data-acepe-code-highlighted": "true",
+							"data-acepe-code-line-numbers": lineNumbers ? "true" : "false",
+							dangerouslySetInnerHTML: { __html: highlightedHtml },
+							style: codeStyle,
+						})
+					: createElement(
+							"pre",
+							{ className: `language-${normalizedLanguage || "text"}` },
+							createElement("code", { style: codeStyle }, code)
+						)
+			)
+		);
+	}
+
 	function MarkdownCode(props: CodeProps) {
 		const isIncomplete = useIsCodeFenceIncomplete();
 		const className = typeof props.className === "string" ? props.className : undefined;
@@ -485,7 +701,7 @@
 		const code = reactNodeToText(props.children);
 		const meta = extractCodeMetaString(props);
 		return createElement(
-			CodeBlock,
+			AcepeCodeBlock,
 			{
 				className,
 				code,
@@ -495,6 +711,22 @@
 				startLine: extractCodeStartLine(meta),
 			},
 			createElement(AcepeCodeCopyButton, { code })
+		);
+	}
+
+	function MarkdownTable(props: TableProps) {
+		return createElement(
+			"div",
+			{ className: "table-wrapper" },
+			createElement(
+				"table",
+				{
+					className: props.className,
+					style: props.style,
+					title: props.title,
+				},
+				props.children
+			)
 		);
 	}
 
@@ -547,6 +779,7 @@
 	): Components {
 		return {
 			code: MarkdownCode,
+			table: MarkdownTable,
 			a: (props: AnchorProps) => {
 				const href = typeof props.href === "string" ? props.href : undefined;
 				const childText = reactNodeToText(props.children);
@@ -691,7 +924,7 @@
 		animated: tokenRevealAnimation ?? animated ?? acepeConfig.animated,
 		remend: acepeConfig.remend,
 		urlTransform: acepeConfig.urlTransform,
-		remarkPlugins: ACEPE_CHIP_REMARK_PLUGINS,
+		remarkPlugins: ACEPE_REMARK_PLUGINS,
 		animationResetKey: createTokenRevealAnimationResetKey(tokenRevealTiming),
 		onExternalLinkClick,
 		onFilePathClick,

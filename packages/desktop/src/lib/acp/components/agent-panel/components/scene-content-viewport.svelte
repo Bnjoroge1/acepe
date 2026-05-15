@@ -48,11 +48,17 @@ import type { TranscriptViewportEffect } from "../logic/transcript-viewport-effe
 import {
 	createNativeTranscriptRendererAdapter,
 	createVirtuaTranscriptRendererAdapter,
+	type TranscriptRendererEffectOutcome,
 	type TranscriptRendererAdapter,
 	type VirtuaTranscriptHandle,
 } from "../logic/transcript-renderer-adapter.js";
+import {
+	isTranscriptViewportFlightRecordingEnabled,
+	recordTranscriptViewportFlight,
+} from "../logic/transcript-viewport-flight-recorder.js";
 import { createTranscriptViewportScheduler } from "../logic/transcript-viewport-scheduler.svelte.js";
 import type { TranscriptViewportRowSummary } from "../logic/transcript-viewport-row-summary.js";
+import type { TranscriptViewportAnchor } from "../logic/viewport-anchor.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
@@ -63,6 +69,7 @@ import {
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
 const MAX_EMPTY_RENDER_FRAMES = 4;
 const NATIVE_FALLBACK_ENTRY_LIMIT = 80;
+const COMPACT_TOOL_NATIVE_ENTRY_LIMIT = 80;
 const NEAR_EDGE_THRESHOLD_PX = 24;
 type SceneContentViewportProps = {
 	panelId: string;
@@ -154,16 +161,51 @@ setContext("modifiedFilesState", {
 // ===== REFS =====
 let vlistRef: VListHandle | undefined = $state(undefined);
 let wrapperRef: HTMLDivElement | null = $state(null);
+let virtuaViewportRef: HTMLDivElement | null = $state(null);
 let fallbackViewportRef: HTMLDivElement | null = $state(null);
 let viewportNudgeOffsetPx = $state(0);
 let nativeFallbackRetryCount = $state(0);
+const virtuaRowRefs = new Map<string, HTMLElement>();
 const fallbackRowRefs = new Map<string, HTMLElement>();
 
-function bindFallbackRow(node: HTMLElement, key: string): { destroy: () => void } {
-	fallbackRowRefs.set(key, node);
+function bindVirtuaRow(
+	node: HTMLElement,
+	key: string
+): { update: (nextKey: string) => void; destroy: () => void } {
+	let currentKey = key;
+	virtuaRowRefs.set(currentKey, node);
 	return {
+		update(nextKey) {
+			if (nextKey === currentKey) {
+				return;
+			}
+			virtuaRowRefs.delete(currentKey);
+			currentKey = nextKey;
+			virtuaRowRefs.set(currentKey, node);
+		},
 		destroy() {
-			fallbackRowRefs.delete(key);
+			virtuaRowRefs.delete(currentKey);
+		},
+	};
+}
+
+function bindFallbackRow(
+	node: HTMLElement,
+	key: string
+): { update: (nextKey: string) => void; destroy: () => void } {
+	let currentKey = key;
+	fallbackRowRefs.set(currentKey, node);
+	return {
+		update(nextKey) {
+			if (nextKey === currentKey) {
+				return;
+			}
+			fallbackRowRefs.delete(currentKey);
+			currentKey = nextKey;
+			fallbackRowRefs.set(currentKey, node);
+		},
+		destroy() {
+			fallbackRowRefs.delete(currentKey);
 		},
 	};
 }
@@ -426,6 +468,30 @@ function buildViewportRowSummary(rows: readonly SceneDisplayRow[]): TranscriptVi
 	};
 }
 
+function shouldUseNativeScrollerForCompactToolTranscript(input: {
+	rows: readonly SceneDisplayRow[];
+	isStreaming: boolean;
+	isWaitingForResponse: boolean;
+}): boolean {
+	if (input.isStreaming || input.isWaitingForResponse) {
+		return false;
+	}
+	if (input.rows.length === 0 || input.rows.length > COMPACT_TOOL_NATIVE_ENTRY_LIMIT) {
+		return false;
+	}
+	for (const row of input.rows) {
+		if (row.type === "assistant_merged" && row.tokenRevealCss !== undefined) {
+			return false;
+		}
+	}
+	for (const row of input.rows) {
+		if (row.type === "tool_call") {
+			return true;
+		}
+	}
+	return false;
+}
+
 let viewportState: TranscriptViewportState = $state(
 	createInitialTranscriptViewportState({
 		sessionId: untrack(() => sessionId),
@@ -438,6 +504,14 @@ const nativeFallbackReason = $derived(
 		? (viewportState.renderer.reason as ViewportFallbackReason)
 		: null
 );
+const shouldUseCompactToolNativeList = $derived(
+	shouldUseNativeScrollerForCompactToolTranscript({
+		rows: displayEntries,
+		isStreaming,
+		isWaitingForResponse,
+	})
+);
+const shouldUseNativeRenderer = $derived(shouldUseNativeList || shouldUseCompactToolNativeList);
 const nativeFallbackEntries = $derived.by((): readonly IndexedDisplayEntry[] => {
 	return buildNativeFallbackWindow(displayEntries, NATIVE_FALLBACK_ENTRY_LIMIT);
 });
@@ -457,9 +531,62 @@ function getVirtuaHandle(): VirtuaTranscriptHandle | undefined {
 	return vlistRef as VListHandle & { scrollTo(offset: number): void };
 }
 
+function formatTraceAnchor(anchor: TranscriptViewportAnchor): string {
+	if (anchor.type === "tail") {
+		return "tail";
+	}
+	if (anchor.type === "offset") {
+		return `offset:${anchor.offsetPx}`;
+	}
+	return `row:${anchor.rowKey}@${anchor.offsetPx}`;
+}
+
+function traceMeasurementFields(): {
+	scrollOffset?: number;
+	scrollSize?: number;
+	viewportSize?: number;
+} {
+	const outcome = transcriptRendererAdapter.measureViewport();
+	if (outcome.type !== "measured") {
+		return {};
+	}
+	return {
+		scrollOffset: outcome.measurement.scrollOffset,
+		scrollSize: outcome.measurement.scrollSize,
+		viewportSize: outcome.measurement.viewportSize,
+	};
+}
+
+function recordScrollWrite(
+	effect: Extract<TranscriptViewportEffect, { type: "RevealRow" | "RevealTail" | "ApplyScrollOffset" }>,
+	outcome: TranscriptRendererEffectOutcome
+): void {
+	if (!isTranscriptViewportFlightRecordingEnabled()) {
+		return;
+	}
+	const measurement = traceMeasurementFields();
+	recordTranscriptViewportFlight({
+		panelId,
+		sessionId: effect.sessionId,
+		generation: effect.generation,
+		phase: outcome.type === "applied" ? "scroll-write" : "effect-skipped",
+		effectType: effect.type,
+		reason: outcome.type === "skipped" ? outcome.reason : effect.reason,
+		follow: viewportState.follow,
+		renderer: viewportState.renderer.type,
+		anchor: formatTraceAnchor(viewportState.anchor),
+		rowCount: viewportState.rows.count,
+		scrollOffset: measurement.scrollOffset,
+		scrollSize: measurement.scrollSize,
+		viewportSize: measurement.viewportSize,
+	});
+}
+
 const virtuaAdapter = createVirtuaTranscriptRendererAdapter({
 	getHandle: getVirtuaHandle,
 	getRowKeys,
+	getContainer: () => virtuaViewportRef,
+	getRowElement: (rowKey: string) => virtuaRowRefs.get(rowKey) ?? null,
 });
 
 const nativeAdapter = createNativeTranscriptRendererAdapter({
@@ -470,29 +597,39 @@ const nativeAdapter = createNativeTranscriptRendererAdapter({
 
 const transcriptRendererAdapter: TranscriptRendererAdapter = {
 	measureViewport() {
-		return shouldUseNativeList ? nativeAdapter.measureViewport() : virtuaAdapter.measureViewport();
+		return shouldUseNativeRenderer ? nativeAdapter.measureViewport() : virtuaAdapter.measureViewport();
 	},
 	captureAnchor() {
-		return shouldUseNativeList ? nativeAdapter.captureAnchor() : virtuaAdapter.captureAnchor();
+		return shouldUseNativeRenderer ? nativeAdapter.captureAnchor() : virtuaAdapter.captureAnchor();
 	},
 	measureAnchor(anchorKey) {
-		return shouldUseNativeList
+		return shouldUseNativeRenderer
 			? nativeAdapter.measureAnchor(anchorKey)
 			: virtuaAdapter.measureAnchor(anchorKey);
 	},
 	revealRow(effect) {
-		return shouldUseNativeList ? nativeAdapter.revealRow(effect) : virtuaAdapter.revealRow(effect);
+		const outcome = shouldUseNativeRenderer
+			? nativeAdapter.revealRow(effect)
+			: virtuaAdapter.revealRow(effect);
+		recordScrollWrite(effect, outcome);
+		return outcome;
 	},
 	revealTail(effect) {
-		return shouldUseNativeList ? nativeAdapter.revealTail(effect) : virtuaAdapter.revealTail(effect);
+		const outcome = shouldUseNativeRenderer
+			? nativeAdapter.revealTail(effect)
+			: virtuaAdapter.revealTail(effect);
+		recordScrollWrite(effect, outcome);
+		return outcome;
 	},
 	applyScrollOffset(effect) {
-		return shouldUseNativeList
+		const outcome = shouldUseNativeRenderer
 			? nativeAdapter.applyScrollOffset(effect)
 			: virtuaAdapter.applyScrollOffset(effect);
+		recordScrollWrite(effect, outcome);
+		return outcome;
 	},
 	probeRendererHealth() {
-		return shouldUseNativeList
+		return shouldUseNativeRenderer
 			? nativeAdapter.probeRendererHealth()
 			: virtuaAdapter.probeRendererHealth();
 	},
@@ -509,6 +646,19 @@ const viewportScheduler = createTranscriptViewportScheduler({
 });
 
 function scheduleViewportEffects(effects: readonly TranscriptViewportEffect[]): void {
+	if (effects.length > 0 && isTranscriptViewportFlightRecordingEnabled()) {
+		recordTranscriptViewportFlight({
+			panelId,
+			sessionId: viewportState.sessionId,
+			generation: viewportState.generation,
+			phase: "effect-scheduled",
+			effectTypes: effects.map((effect) => effect.type),
+			follow: viewportState.follow,
+			renderer: viewportState.renderer.type,
+			anchor: formatTraceAnchor(viewportState.anchor),
+			rowCount: viewportState.rows.count,
+		});
+	}
 	viewportScheduler.schedule(effects);
 }
 
@@ -518,7 +668,33 @@ function dispatchViewportEvent(event: TranscriptViewportEvent): void {
 	}
 	const result = reduceTranscriptViewportEvent(viewportState, event);
 	viewportState = result.state;
+	if (isTranscriptViewportFlightRecordingEnabled()) {
+		const measurement = measureCurrentViewport();
+		recordTranscriptViewportFlight({
+			panelId,
+			sessionId: viewportState.sessionId,
+			generation: viewportState.generation,
+			phase: "event",
+			eventType: event.type,
+			effectTypes: result.effects.map((effect) => effect.type),
+			follow: viewportState.follow,
+			renderer: viewportState.renderer.type,
+			anchor: formatTraceAnchor(viewportState.anchor),
+			rowCount: viewportState.rows.count,
+			scrollOffset: measurement.scrollOffset,
+			scrollSize: measurement.scrollSize,
+			viewportSize: measurement.viewportSize,
+		});
+	}
 	scheduleViewportEffects(result.effects);
+}
+
+function shouldRunDeferredTailReveal(scheduledSessionId: string | null, scheduledGeneration: number): boolean {
+	return (
+		sessionId === scheduledSessionId &&
+		viewportState.generation === scheduledGeneration &&
+		viewportState.follow === "following"
+	);
 }
 
 function measureCurrentViewport(): TranscriptViewportMeasurement {
@@ -588,6 +764,7 @@ $effect(() => {
 	nativeFallbackRetryCount = 0;
 	viewportNudgeOffsetPx = 0;
 	historicalScrollApplied = false;
+	const sessionSwitchGeneration = viewportState.generation;
 
 	let frameCount = 0;
 	let sessionSwitchRafId: number | null = null;
@@ -598,10 +775,13 @@ $effect(() => {
 			return;
 		}
 		sessionSwitchRafId = null;
+		if (!shouldRunDeferredTailReveal(sessionId, sessionSwitchGeneration)) {
+			return;
+		}
 		dispatchViewportEvent({
 			type: "PublicScrollCommand",
 			sessionId,
-			generation: viewportState.generation,
+			generation: sessionSwitchGeneration,
 			command: "bottom",
 		});
 	};
@@ -618,7 +798,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!initialHydrationComplete || shouldUseNativeList || displayEntries.length === 0 || !vlistRef) {
+	if (!initialHydrationComplete || shouldUseNativeRenderer || displayEntries.length === 0 || !vlistRef) {
 		viewportNudgeOffsetPx = 0;
 		return;
 	}
@@ -678,7 +858,7 @@ $effect(() => {
 $effect(() => {
 	if (
 		!initialHydrationComplete ||
-		shouldUseNativeList ||
+		shouldUseNativeRenderer ||
 		displayEntries.length === 0 ||
 		!wrapperRef
 	) {
@@ -792,6 +972,8 @@ $effect(() => {
 	if (displayEntries.length === 0) return;
 
 	historicalScrollApplied = true;
+	const historicalSessionId = sessionId;
+	const historicalGeneration = untrack(() => viewportState.generation);
 
 	// Wait two frames: one for VList to process the entries, one for layout to settle.
 	let frameCount = 0;
@@ -803,10 +985,13 @@ $effect(() => {
 			return;
 		}
 		scrollRafId = null;
+		if (!shouldRunDeferredTailReveal(historicalSessionId, historicalGeneration)) {
+			return;
+		}
 		dispatchViewportEvent({
 			type: "PublicScrollCommand",
-			sessionId,
-			generation: viewportState.generation,
+			sessionId: historicalSessionId,
+			generation: historicalGeneration,
 			command: "bottom",
 		});
 	};
@@ -835,26 +1020,74 @@ function requestRevealForIndex(index: number): void {
 	});
 }
 
-function getFirstAnchorKey(): string | undefined {
-	return viewportState.rows.anchorEligibleKeys[0];
+function captureCurrentAnchor(source: string):
+	| {
+			anchorKey: string;
+			anchorOffsetPx: number;
+	  }
+	| undefined {
+	const outcome = transcriptRendererAdapter.captureAnchor();
+	if (outcome.type !== "captured") {
+		if (isTranscriptViewportFlightRecordingEnabled()) {
+			recordTranscriptViewportFlight({
+				panelId,
+				sessionId,
+				generation: viewportState.generation,
+				phase: "anchor",
+				source,
+				reason: outcome.reason,
+				follow: viewportState.follow,
+				renderer: viewportState.renderer.type,
+				anchor: formatTraceAnchor(viewportState.anchor),
+				rowCount: viewportState.rows.count,
+			});
+		}
+		return undefined;
+	}
+
+	if (isTranscriptViewportFlightRecordingEnabled()) {
+		recordTranscriptViewportFlight({
+			panelId,
+			sessionId,
+			generation: viewportState.generation,
+			phase: "anchor",
+			source,
+			anchorKey: outcome.anchorKey,
+			anchorOffsetPx: outcome.offsetPx,
+			follow: viewportState.follow,
+			renderer: viewportState.renderer.type,
+			anchor: formatTraceAnchor(viewportState.anchor),
+			rowCount: viewportState.rows.count,
+		});
+	}
+
+	return {
+		anchorKey: outcome.anchorKey,
+		anchorOffsetPx: outcome.offsetPx,
+	};
 }
 
 function handleVListScroll(_offset: number): void {
+	const anchor = captureCurrentAnchor("vlist-scroll");
 	dispatchViewportEvent({
 		type: "UserScroll",
 		sessionId,
 		generation: viewportState.generation,
 		measurement: measureCurrentViewport(),
-		anchorKey: getFirstAnchorKey(),
+		anchorKey: anchor?.anchorKey,
+		anchorOffsetPx: anchor?.anchorOffsetPx,
 	});
 }
 
 function handleFallbackScroll(): void {
+	const anchor = captureCurrentAnchor("native-scroll");
 	dispatchViewportEvent({
 		type: "UserScroll",
 		sessionId,
 		generation: viewportState.generation,
 		measurement: measureCurrentViewport(),
+		anchorKey: anchor?.anchorKey,
+		anchorOffsetPx: anchor?.anchorOffsetPx,
 	});
 }
 
@@ -885,6 +1118,7 @@ $effect(() => {
 function wheelAction(node: HTMLElement): { destroy: () => void } {
 	const handleWheel = (event: WheelEvent) => {
 		const measured = measureCurrentViewport();
+		const anchor = captureCurrentAnchor("wheel");
 		const measurement =
 			event.deltaY < 0
 				? {
@@ -898,7 +1132,8 @@ function wheelAction(node: HTMLElement): { destroy: () => void } {
 			sessionId,
 			generation: viewportState.generation,
 			measurement,
-			anchorKey: getFirstAnchorKey(),
+			anchorKey: anchor?.anchorKey,
+			anchorOffsetPx: anchor?.anchorOffsetPx,
 		});
 	};
 	node.addEventListener("wheel", handleWheel, { passive: true });
@@ -991,7 +1226,7 @@ export function scrollToTop() {
 		{/if}
 	{/snippet}
 
-	{#if shouldUseNativeList}
+	{#if shouldUseNativeRenderer}
 		<div
 			bind:this={fallbackViewportRef}
 			data-testid="native-fallback"
@@ -1006,20 +1241,25 @@ export function scrollToTop() {
 		</div>
 	{:else}
 		{#key `${sessionId ?? "pre-session"}:${vlistRenderKey}`}
-			<VList
-				bind:this={vlistRef}
-				data={displayEntries}
-				{getKey}
-				onscroll={handleVListScroll}
-				bufferSize={800}
-				itemSize={120}
-				class="h-full"
-				style="contain: strict;"
-			>
-				{#snippet children(entry: SceneDisplayRow, index: number)}
-					{@render renderEntry(entry, index)}
-				{/snippet}
-			</VList>
+			<div bind:this={virtuaViewportRef} class="h-full min-h-0">
+				<VList
+					bind:this={vlistRef}
+					data={displayEntries}
+					{getKey}
+					onscroll={handleVListScroll}
+					bufferSize={800}
+					itemSize={120}
+					class="h-full"
+					style="contain: strict;"
+				>
+					{#snippet children(entry: SceneDisplayRow, index: number)}
+						{@const entryKey = getKey(entry, index)}
+						<div use:bindVirtuaRow={entryKey} data-entry-key={entryKey}>
+							{@render renderEntry(entry, index)}
+						</div>
+					{/snippet}
+				</VList>
+			</div>
 		{/key}
 	{/if}
 </div>

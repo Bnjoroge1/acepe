@@ -96,6 +96,40 @@ impl TranscriptDeltaOperation {
                     segment,
                 }]
             }),
+            SessionUpdate::AgentThoughtChunk {
+                chunk,
+                message_id,
+                part_id,
+                ..
+            } => text_chunk_from_block(
+                &chunk.content,
+                || {
+                    message_id
+                        .clone()
+                        .unwrap_or_else(|| format!("assistant-event-{event_seq}"))
+                },
+                TranscriptEntryRole::Assistant,
+                part_id
+                    .clone()
+                    .unwrap_or_else(|| format!("assistant-event-{event_seq}:chunk:{event_seq}")),
+            )
+            .map(|segment| {
+                let thought_segment = match segment {
+                    TranscriptSegment::Text { segment_id, text } => {
+                        TranscriptSegment::Thought { segment_id, text }
+                    }
+                    TranscriptSegment::Thought { segment_id, text } => {
+                        TranscriptSegment::Thought { segment_id, text }
+                    }
+                };
+                vec![Self::AppendSegment {
+                    entry_id: message_id
+                        .clone()
+                        .unwrap_or_else(|| format!("assistant-event-{event_seq}")),
+                    role: TranscriptEntryRole::Assistant,
+                    segment: thought_segment,
+                }]
+            }),
             SessionUpdate::ToolCall { tool_call, .. } => {
                 if should_skip_unanswered_question_tool_row(tool_call) {
                     return None;

@@ -33,6 +33,12 @@ pub enum ProjectionJournalUpdate {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         produced_at_monotonic_ms: Option<u64>,
     },
+    AgentThoughtChunk {
+        chunk: ContentChunk,
+        part_id: Option<String>,
+        message_id: Option<String>,
+        session_id: Option<String>,
+    },
     PermissionRequest {
         permission: PermissionData,
         session_id: Option<String>,
@@ -77,6 +83,17 @@ impl ProjectionJournalUpdate {
                 message_id: message_id.clone(),
                 session_id: session_id.clone(),
                 produced_at_monotonic_ms: *produced_at_monotonic_ms,
+            }),
+            SessionUpdate::AgentThoughtChunk {
+                chunk,
+                part_id,
+                message_id,
+                session_id,
+            } => Some(Self::AgentThoughtChunk {
+                chunk: chunk.clone(),
+                part_id: part_id.clone(),
+                message_id: message_id.clone(),
+                session_id: session_id.clone(),
             }),
             SessionUpdate::PermissionRequest {
                 permission,
@@ -130,6 +147,17 @@ impl ProjectionJournalUpdate {
                 message_id,
                 session_id,
                 produced_at_monotonic_ms,
+            },
+            Self::AgentThoughtChunk {
+                chunk,
+                part_id,
+                message_id,
+                session_id,
+            } => SessionUpdate::AgentThoughtChunk {
+                chunk,
+                part_id,
+                message_id,
+                session_id,
             },
             Self::PermissionRequest {
                 permission,
@@ -299,11 +327,7 @@ pub fn rebuild_completed_local_transcript_snapshot(
         };
         let session_update = update.as_ref().clone().into_session_update();
         if let Some(delta) = registry.apply_session_update(event.event_seq, &session_update) {
-            if delta
-                .operations
-                .iter()
-                .any(|operation| operation_contains_text_segment(operation))
-            {
+            if delta.operations.iter().any(operation_contains_text_segment) {
                 applied_transcript_text = true;
             }
         }
@@ -332,6 +356,7 @@ fn operation_contains_text_segment(operation: &TranscriptDeltaOperation) -> bool
 fn segment_contains_text(segment: &TranscriptSegment) -> bool {
     match segment {
         TranscriptSegment::Text { text, .. } => !text.is_empty(),
+        TranscriptSegment::Thought { text, .. } => !text.is_empty(),
     }
 }
 
@@ -371,15 +396,17 @@ pub fn decode_serialized_events(
 #[cfg(test)]
 mod tests {
     use super::{
-        decode_serialized_events, rebuild_session_projection, ProjectionJournalUpdate,
-        SessionJournalEventPayload,
+        decode_serialized_events, rebuild_completed_local_transcript_snapshot,
+        rebuild_session_projection, ProjectionJournalUpdate, SessionJournalEventPayload,
     };
     use crate::acp::parsers::AgentType;
     use crate::acp::session_descriptor::SessionReplayContext;
     use crate::acp::session_update::{
-        PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,
+        ContentChunk, PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,
     };
+    use crate::acp::transcript_projection::TranscriptSegment;
     use crate::acp::types::CanonicalAgentId;
+    use crate::acp::types::ContentBlock;
     use crate::db::repository::SerializedSessionJournalEventRow;
 
     fn replay_context() -> SessionReplayContext {
@@ -571,6 +598,46 @@ mod tests {
             .interactions
             .iter()
             .all(|interaction| !interaction.id.starts_with("question-")));
+    }
+
+    #[test]
+    fn completed_local_transcript_rebuild_preserves_journaled_thought_chunks() {
+        let replay_context = replay_context();
+        let rows = vec![
+            serialized_projection_row(
+                1,
+                SessionUpdate::AgentThoughtChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "checking the readme".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    part_id: Some("thinking-part-1".to_string()),
+                    message_id: Some("assistant-1".to_string()),
+                    session_id: Some("local-session".to_string()),
+                },
+            ),
+            serialized_projection_row(
+                2,
+                SessionUpdate::TurnComplete {
+                    session_id: Some("local-session".to_string()),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+        ];
+        let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
+
+        let snapshot = rebuild_completed_local_transcript_snapshot(&replay_context, &decoded)
+            .expect("rebuilt transcript");
+
+        assert_eq!(
+            snapshot.entries[0].segments[0],
+            TranscriptSegment::Thought {
+                segment_id: "assistant-1:segment:1".to_string(),
+                text: "checking the readme".to_string(),
+            }
+        );
     }
 
     #[test]

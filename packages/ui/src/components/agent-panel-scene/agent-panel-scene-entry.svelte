@@ -152,7 +152,7 @@
 	<AgentUserMessage text={entry.text} timestampMs={entry.timestampMs} />
 {:else if entry.type === "assistant"}
 	<AgentAssistantMessage
-		message={{
+		message={entry.message ?? {
 			chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 		}}
 		isStreaming={entry.isStreaming}

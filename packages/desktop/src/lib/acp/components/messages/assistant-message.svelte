@@ -121,8 +121,7 @@ const lastMessageTextGroupIndex = $derived.by(() => {
 const hasThinking = $derived(filteredThoughtGroups.length > 0);
 const hasMessageContent = $derived(groupedChunks.messageGroups.length > 0);
 const hasAnyContent = $derived(hasThinking || hasMessageContent);
-/** Show thinking block only while there is no assistant message content yet; hide once reply text starts. */
-const showThinkingBlock = $derived(hasThinking && !hasMessageContent);
+const showThinkingBlock = $derived(hasThinking);
 const visibleMessageGroups = $derived(groupedChunks.messageGroups);
 
 /** "Thinking" or "Thinking for Xs" while streaming, "Thought" or "Thought for Xs" when done */
@@ -233,7 +232,7 @@ $effect(() => {
 					}}
 				>
 					<div
-						class="thinking-content scrollbar-none overflow-y-auto opacity-60"
+						class="thinking-content scrollbar-none overflow-y-auto text-xs opacity-60"
 						style={thinkingViewportCssText(DEFAULT_THINKING_VIEWPORT_POLICY)}
 						bind:this={thinkingContainerRef}
 					>
@@ -303,6 +302,7 @@ $effect(() => {
 
 	.thinking-content :global(.markdown-content),
 	.thinking-content :global(.markdown-content *) {
+		font-size: inherit !important;
 		line-height: var(--thinking-line-height) !important;
 	}
 </style>

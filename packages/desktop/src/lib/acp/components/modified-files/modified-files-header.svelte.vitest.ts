@@ -204,4 +204,35 @@ describe("ModifiedFilesHeader", () => {
 		expect(openPrButton.className).not.toContain("min-w-0");
 		expect(openPrButton.className).not.toContain("truncate");
 	});
+
+	it("routes Review clicks to the dialog opener instead of panel review mode when provided", async () => {
+		const file = {
+			filePath: "src/example.ts",
+			fileName: "example.ts",
+			totalAdded: 3,
+			totalRemoved: 1,
+			originalContent: null,
+			finalContent: null,
+			editCount: 1,
+		};
+		const modifiedFilesState: ModifiedFilesState = {
+			files: [file],
+			byPath: new Map([[file.filePath, file]]),
+			fileCount: 1,
+			totalEditCount: 1,
+		};
+		const openReviewDialog = vi.fn();
+		const enterReviewMode = vi.fn();
+
+		render(ModifiedFilesHeader, {
+			modifiedFilesState,
+			onOpenReviewDialog: openReviewDialog,
+			onEnterReviewMode: enterReviewMode,
+		});
+
+		await fireEvent.click(screen.getByRole("button", { name: /review/i }));
+
+		expect(openReviewDialog).toHaveBeenCalledWith(modifiedFilesState, 0);
+		expect(enterReviewMode).not.toHaveBeenCalled();
+	});
 });

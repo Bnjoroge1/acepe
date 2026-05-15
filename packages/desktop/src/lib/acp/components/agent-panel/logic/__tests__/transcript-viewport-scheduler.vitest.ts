@@ -119,6 +119,7 @@ describe("TranscriptViewportScheduler", () => {
 				sessionId: "session-1",
 				generation: 0,
 				anchorKey: "row-1",
+				offsetPx: 12,
 			},
 		];
 
@@ -128,6 +129,7 @@ describe("TranscriptViewportScheduler", () => {
 		expect(order).toEqual([
 			"read:measureViewport",
 			"read:measureAnchor:row-1",
+			"read:measureViewport",
 			"write:revealTail:public-scroll-bottom",
 			"outcome:applied",
 		]);
@@ -196,6 +198,7 @@ describe("TranscriptViewportScheduler", () => {
 				sessionId: "session-1",
 				generation: 0,
 				anchorKey: "missing-row",
+				offsetPx: 0,
 			},
 		]);
 		frame.flush();
@@ -208,6 +211,63 @@ describe("TranscriptViewportScheduler", () => {
 				anchorKey: "missing-row",
 				fallbackOffsetPx: 0,
 			},
+		]);
+	});
+
+	it("applies an offset correction when a preserved anchor moves in the viewport", () => {
+		const order: string[] = [];
+		const frame = createManualFrame();
+		const adapter = createRecordingAdapter(order);
+		const scheduler = createTranscriptViewportScheduler({
+			adapter: {
+				measureViewport() {
+					order.push("read:measureViewport");
+					return {
+						type: "measured",
+						measurement: {
+							scrollOffset: 100,
+							scrollSize: 1000,
+							viewportSize: 300,
+						},
+					};
+				},
+				captureAnchor: adapter.captureAnchor,
+				measureAnchor(anchorKey) {
+					order.push(`read:measureAnchor:${anchorKey}`);
+					return {
+						type: "measured",
+						anchorKey,
+						offsetPx: 42,
+					};
+				},
+				revealRow: adapter.revealRow,
+				revealTail: adapter.revealTail,
+				applyScrollOffset: adapter.applyScrollOffset,
+				probeRendererHealth: adapter.probeRendererHealth,
+				reportEffectOutcome: adapter.reportEffectOutcome,
+			},
+			requestFrame: frame.request,
+			cancelFrame: frame.cancel,
+			getGeneration: () => 0,
+			getSessionId: () => "session-1",
+		});
+
+		scheduler.schedule([
+			{
+				type: "PreserveAnchor",
+				sessionId: "session-1",
+				generation: 0,
+				anchorKey: "row-1",
+				offsetPx: 12,
+			} as TranscriptViewportEffect,
+		]);
+		frame.flush();
+
+		expect(order).toEqual([
+			"read:measureAnchor:row-1",
+			"read:measureViewport",
+			"write:applyScrollOffset:130",
+			"outcome:applied",
 		]);
 	});
 });

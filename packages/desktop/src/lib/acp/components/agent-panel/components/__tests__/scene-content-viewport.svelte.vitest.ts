@@ -255,6 +255,28 @@ describe("SceneContentViewport auto-scroll", () => {
 		expect(dataLengthHistory.indexOf(0)).toBeLessThan(dataLengthHistory.indexOf(2));
 	});
 
+	it("does not run the delayed historical bottom reveal after the user scrolls away", async () => {
+		const view = renderList({
+			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+		});
+		await tick();
+		await flushAnimationFrames();
+		await tick();
+
+		const viewport = view.container.firstElementChild;
+		if (!(viewport instanceof HTMLElement)) {
+			throw new Error("Missing viewport element");
+		}
+
+		scrollToIndexCalls.length = 0;
+		await fireEvent.wheel(viewport, { deltaY: -100 });
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+
+		expect(scrollToIndexCalls).toHaveLength(0);
+	});
+
 	it("does not crash when a scheduled scroll flush runs after VList unmounts", async () => {
 		const view = renderList({
 			sceneEntries: createManyUserSceneEntries(3),
@@ -430,6 +452,24 @@ describe("SceneContentViewport auto-scroll", () => {
 			id: "assistant-1",
 			type: "assistant",
 		});
+	});
+
+	it("uses the native scroller for compact settled tool transcripts", async () => {
+		const view = renderList({
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createToolCallSceneEntry("tool-1"),
+				createAssistantSceneEntry("assistant-1", "done"),
+			],
+			turnState: "idle",
+			isWaitingForResponse: false,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		expect(view.queryByTestId("native-fallback")).not.toBeNull();
+		expect(view.queryByTestId("vlist-stub")).toBeNull();
 	});
 
 	it("keeps a live assistant row in healthy Virtua when the global turn state is idle", async () => {

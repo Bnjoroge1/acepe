@@ -1,0 +1,46 @@
+import { cleanup, render } from "@testing-library/svelte";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import AgentToolThinkingExpandedFixture from "./fixtures/agent-tool-thinking-expanded-fixture.svelte";
+import AgentThinkingSceneEntry from "../agent-thinking-scene-entry.svelte";
+
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
+
+	return import(/* @vite-ignore */ svelteClientPath);
+});
+
+afterEach(() => {
+	cleanup();
+});
+
+describe("AgentToolThinking", () => {
+	it("renders expanded thinking with a quiet line and label-sized copy", () => {
+		const view = render(AgentToolThinkingExpandedFixture);
+
+		expect(view.container.querySelector(".acepe-thinking-dotmatrix")).toBeNull();
+		expect(view.getByTestId("thinking-block-line")).toBeTruthy();
+		expect(view.getByTestId("thinking-block-content").className).toContain("text-xs");
+		expect(view.getByTestId("thinking-copy").textContent).toBe("Checking the next move.");
+	});
+
+	it("renders live thinking labels with a line instead of the dot matrix loader", () => {
+		const view = render(AgentThinkingSceneEntry, {
+			props: {
+				durationMs: 1200,
+				startedAtMs: null,
+				label: "Planning next moves...",
+			},
+		});
+
+		expect(view.container.querySelector(".acepe-dotm-root")).toBeNull();
+		expect(view.getByTestId("thinking-header-line")).toBeTruthy();
+		expect(view.getByText("Planning next moves...")).toBeTruthy();
+	});
+});

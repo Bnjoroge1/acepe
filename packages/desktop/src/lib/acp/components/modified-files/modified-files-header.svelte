@@ -60,6 +60,8 @@ interface Props {
 	sessionId?: string | null;
 	/** Called when Review button is clicked - enters panel review mode */
 	onEnterReviewMode?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
+	/** Called when Review should open without changing the parent panel layout */
+	onOpenReviewDialog?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
 	/** Optional: when provided, shows expand icon to open full-screen review overlay */
 	onOpenFullscreenReview?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
 	/** Optional: when provided, shows Create PR pill button */
@@ -98,6 +100,7 @@ let {
 	modifiedFilesState,
 	sessionId = null,
 	onEnterReviewMode,
+	onOpenReviewDialog,
 	onOpenFullscreenReview,
 	onCreatePr,
 	createPrLoading = false,
@@ -284,6 +287,10 @@ $effect(() => {
 
 function handleReviewButtonClick(fileIndex: number): void {
 	if (!modifiedFilesState) return;
+	if (onOpenReviewDialog) {
+		onOpenReviewDialog(modifiedFilesState, fileIndex);
+		return;
+	}
 	const preferFullscreen = reviewPreferenceStore.preferFullscreen;
 	if (preferFullscreen && onOpenFullscreenReview) {
 		onOpenFullscreenReview(modifiedFilesState, fileIndex);

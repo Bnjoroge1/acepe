@@ -287,7 +287,7 @@ export type TodoUpdate = { operation: TodoUpdateOperation; items?: TodoItem[] | 
 
 export type TranscriptEntryRole = "user" | "assistant" | "tool" | "error"
 
-export type TranscriptSegment = { kind: "text"; segmentId: string; text: string }
+export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string }
 
 export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null }
 
@@ -674,3 +674,4 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
+

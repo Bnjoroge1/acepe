@@ -4,6 +4,22 @@ import {
 	createVirtuaTranscriptRendererAdapter,
 } from "../transcript-renderer-adapter.js";
 
+function defineRect(element: HTMLElement, rect: { top: number; bottom: number }): void {
+	element.getBoundingClientRect = () => {
+		return {
+			x: 0,
+			y: rect.top,
+			width: 100,
+			height: rect.bottom - rect.top,
+			top: rect.top,
+			right: 100,
+			bottom: rect.bottom,
+			left: 0,
+			toJSON: () => "",
+		};
+	};
+}
+
 describe("TranscriptRendererAdapter", () => {
 	it("normalizes Virtua viewport measurement", () => {
 		const adapter = createVirtuaTranscriptRendererAdapter({
@@ -111,6 +127,68 @@ describe("TranscriptRendererAdapter", () => {
 				scrollSize: 900,
 				viewportSize: 300,
 			},
+		});
+	});
+
+	it("captures the first visible native anchor instead of the first row key", () => {
+		const container = document.createElement("div");
+		const rowAbove = document.createElement("div");
+		const firstVisible = document.createElement("div");
+		const secondVisible = document.createElement("div");
+		defineRect(container, { top: 100, bottom: 300 });
+		defineRect(rowAbove, { top: 20, bottom: 90 });
+		defineRect(firstVisible, { top: 112, bottom: 150 });
+		defineRect(secondVisible, { top: 180, bottom: 220 });
+
+		const rows = new Map<string, HTMLElement>([
+			["row-above", rowAbove],
+			["first-visible", firstVisible],
+			["second-visible", secondVisible],
+		]);
+		const adapter = createNativeTranscriptRendererAdapter({
+			getContainer: () => container,
+			getRowKeys: () => ["row-above", "first-visible", "second-visible"],
+			getRowElement: (rowKey) => rows.get(rowKey) ?? null,
+		});
+
+		expect(adapter.captureAnchor()).toEqual({
+			type: "captured",
+			anchorKey: "first-visible",
+			offsetPx: 12,
+		});
+	});
+
+	it("captures the first visible Virtua anchor when row elements are available", () => {
+		const container = document.createElement("div");
+		const rowAbove = document.createElement("div");
+		const firstVisible = document.createElement("div");
+		defineRect(container, { top: 200, bottom: 500 });
+		defineRect(rowAbove, { top: 120, bottom: 180 });
+		defineRect(firstVisible, { top: 236, bottom: 280 });
+
+		const rows = new Map<string, HTMLElement>([
+			["row-above", rowAbove],
+			["first-visible", firstVisible],
+		]);
+		const adapter = createVirtuaTranscriptRendererAdapter({
+			getHandle: () => {
+				return {
+					getScrollOffset: () => 900,
+					getScrollSize: () => 1200,
+					getViewportSize: () => 300,
+					scrollToIndex: vi.fn(),
+					scrollTo: vi.fn(),
+				};
+			},
+			getRowKeys: () => ["row-above", "first-visible"],
+			getContainer: () => container,
+			getRowElement: (rowKey) => rows.get(rowKey) ?? null,
+		});
+
+		expect(adapter.captureAnchor()).toEqual({
+			type: "captured",
+			anchorKey: "first-visible",
+			offsetPx: 36,
 		});
 	});
 });

@@ -36,11 +36,12 @@ export type TranscriptViewportEffect =
 	| (TranscriptViewportEffectBase & {
 			type: "PreserveAnchor";
 			anchorKey: string;
+			offsetPx: number;
 	  })
 	| (TranscriptViewportEffectBase & {
 			type: "ApplyScrollOffset";
 			offsetPx: number;
-			reason: "anchor-missing" | "fallback-recovery";
+			reason: "anchor-missing" | "fallback-recovery" | "preserve-anchor";
 	  })
 	| (TranscriptViewportEffectBase & {
 			type: "SwitchRenderer";

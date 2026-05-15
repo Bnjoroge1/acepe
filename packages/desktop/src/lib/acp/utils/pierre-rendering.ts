@@ -39,7 +39,8 @@ export function buildPierreDiffOptions<LAnnotation>(
 	themeType: ThemeTypes,
 	diffStyle: "unified" | "split",
 	overflow: "scroll" | "wrap",
-	disableLineNumbers: boolean
+	disableLineNumbers: boolean,
+	extraUnsafeCSS = ""
 ): FileDiffOptions<LAnnotation> {
 	return {
 		theme: getPierreThemeNames(),
@@ -48,7 +49,7 @@ export function buildPierreDiffOptions<LAnnotation>(
 		disableFileHeader: true,
 		hunkSeparators: "line-info",
 		overflow,
-		unsafeCSS: pierreDiffsUnsafeCSS,
+		unsafeCSS: extraUnsafeCSS ? `${pierreDiffsUnsafeCSS}\n${extraUnsafeCSS}` : pierreDiffsUnsafeCSS,
 		expandUnchanged: false,
 		diffIndicators: "bars",
 		lineDiffType: "word-alt",

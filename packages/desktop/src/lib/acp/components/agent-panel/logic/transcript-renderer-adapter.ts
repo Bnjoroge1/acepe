@@ -82,6 +82,8 @@ export type VirtuaTranscriptHandle = {
 export type VirtuaTranscriptRendererAdapterOptions = {
 	getHandle(): VirtuaTranscriptHandle | null | undefined;
 	getRowKeys(): readonly string[];
+	getContainer?(): HTMLElement | null;
+	getRowElement?(rowKey: string): HTMLElement | null;
 };
 
 export type NativeTranscriptRendererAdapterOptions = {
@@ -114,6 +116,16 @@ function findRowIndex(rowKeys: readonly string[], rowKey: string): number {
 	return -1;
 }
 
+function measureRowOffsetInContainer(container: HTMLElement, row: HTMLElement): number {
+	return row.getBoundingClientRect().top - container.getBoundingClientRect().top;
+}
+
+function isRowVisibleInContainer(container: HTMLElement, row: HTMLElement): boolean {
+	const containerRect = container.getBoundingClientRect();
+	const rowRect = row.getBoundingClientRect();
+	return rowRect.bottom > containerRect.top && rowRect.top < containerRect.bottom;
+}
+
 export function createVirtuaTranscriptRendererAdapter(
 	options: VirtuaTranscriptRendererAdapterOptions
 ): TranscriptRendererAdapter {
@@ -134,6 +146,19 @@ export function createVirtuaTranscriptRendererAdapter(
 		},
 		captureAnchor() {
 			const rowKeys = options.getRowKeys();
+			const container = options.getContainer?.() ?? null;
+			if (container !== null && options.getRowElement !== undefined) {
+				for (const rowKey of rowKeys) {
+					const row = options.getRowElement(rowKey);
+					if (row !== null && isRowVisibleInContainer(container, row)) {
+						return {
+							type: "captured",
+							anchorKey: rowKey,
+							offsetPx: measureRowOffsetInContainer(container, row),
+						};
+					}
+				}
+			}
 			const anchorKey = rowKeys[0];
 			if (anchorKey === undefined) {
 				return {
@@ -148,6 +173,15 @@ export function createVirtuaTranscriptRendererAdapter(
 			};
 		},
 		measureAnchor(anchorKey) {
+			const container = options.getContainer?.() ?? null;
+			const row = options.getRowElement?.(anchorKey) ?? null;
+			if (container !== null && row !== null) {
+				return {
+					type: "measured",
+					anchorKey,
+					offsetPx: measureRowOffsetInContainer(container, row),
+				};
+			}
 			const index = findRowIndex(options.getRowKeys(), anchorKey);
 			if (index < 0) {
 				return {
@@ -255,18 +289,32 @@ export function createNativeTranscriptRendererAdapter(
 		},
 		captureAnchor() {
 			const rowKeys = options.getRowKeys();
-			const anchorKey = rowKeys[0];
-			if (anchorKey === undefined) {
+			const container = options.getContainer();
+			if (container === null) {
+				return {
+					type: "missing",
+					reason: "missing-adapter",
+				};
+			}
+			for (const rowKey of rowKeys) {
+				const row = options.getRowElement(rowKey);
+				if (row !== null && isRowVisibleInContainer(container, row)) {
+					return {
+						type: "captured",
+						anchorKey: rowKey,
+						offsetPx: measureRowOffsetInContainer(container, row),
+					};
+				}
+			}
+			if (rowKeys[0] === undefined) {
 				return {
 					type: "missing",
 					reason: "missing-target",
 				};
 			}
-			const container = options.getContainer();
 			return {
-				type: "captured",
-				anchorKey,
-				offsetPx: container?.scrollTop ?? 0,
+				type: "missing",
+				reason: "missing-target",
 			};
 		},
 		measureAnchor(anchorKey) {
@@ -279,10 +327,17 @@ export function createNativeTranscriptRendererAdapter(
 				};
 			}
 			const container = options.getContainer();
+			if (container === null) {
+				return {
+					type: "missing",
+					anchorKey,
+					reason: "missing-adapter",
+				};
+			}
 			return {
 				type: "measured",
 				anchorKey,
-				offsetPx: container?.scrollTop ?? 0,
+				offsetPx: measureRowOffsetInContainer(container, row),
 			};
 		},
 		revealRow(effect) {

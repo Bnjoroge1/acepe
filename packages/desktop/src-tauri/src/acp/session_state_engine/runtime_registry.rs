@@ -783,7 +783,7 @@ fn build_assistant_text_delta_from_components(
     })?;
     let total_chars = transcript_entry_text_char_count(row_entry);
     let delta_chars = delta_text.chars().count();
-    let char_offset_chars = total_chars.checked_sub(delta_chars).unwrap_or(0);
+    let char_offset_chars = total_chars.saturating_sub(delta_chars);
     let char_offset = match u32::try_from(char_offset_chars) {
         Ok(value) => value,
         Err(_) => {
@@ -857,9 +857,9 @@ fn transcript_entry_text_char_count(entry: &TranscriptEntry) -> usize {
     entry
         .segments
         .iter()
-        .map(|segment| {
-            let TranscriptSegment::Text { text, .. } = segment;
-            text.chars().count()
+        .map(|segment| match segment {
+            TranscriptSegment::Text { text, .. } => text.chars().count(),
+            TranscriptSegment::Thought { text, .. } => text.chars().count(),
         })
         .sum()
 }

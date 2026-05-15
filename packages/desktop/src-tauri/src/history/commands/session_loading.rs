@@ -166,6 +166,7 @@ fn transcript_entry_text(segments: &[TranscriptSegment]) -> String {
         .iter()
         .map(|segment| match segment {
             TranscriptSegment::Text { text, .. } => text.as_str(),
+            TranscriptSegment::Thought { text, .. } => text.as_str(),
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -256,15 +257,14 @@ async fn load_cursor_thread_snapshot_for_audit(
     source_path: Option<String>,
 ) -> Result<Option<SessionThreadSnapshot>, anyhow::Error> {
     if let Some(source_path) = source_path {
-        match cursor_parser::load_session_from_source(session_id, &source_path).await {
-            Ok(Some(full_session)) => {
-                return Ok(Some(
-                    crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
-                        &full_session,
-                    ),
-                ));
-            }
-            Ok(None) | Err(_) => {}
+        if let Ok(Some(full_session)) =
+            cursor_parser::load_session_from_source(session_id, &source_path).await
+        {
+            return Ok(Some(
+                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
+                    &full_session,
+                ),
+            ));
         }
     }
 

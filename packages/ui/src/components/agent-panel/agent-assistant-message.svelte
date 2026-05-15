@@ -231,7 +231,7 @@ bind:this={thinkingContainerRef}
 {:else if group.type === "text"}
 <MarkdownDisplay
 	content={group.text}
-	textSize="text-sm"
+	textSize="text-xs"
 	class="agent-assistant-markdown"
 	contentPaddingClass="p-0"
 	{iconBasePath}
@@ -310,6 +310,7 @@ scroll-snap-stop: normal;
 
 .thinking-content :global(.markdown-content),
 .thinking-content :global(.markdown-content *) {
-line-height: var(--thinking-line-height) !important;
+	font-size: inherit !important;
+	line-height: var(--thinking-line-height) !important;
 }
 </style>

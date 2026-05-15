@@ -79,8 +79,36 @@ describe("TranscriptViewportController", () => {
 			sessionId: "session-1",
 			generation: detached.generation,
 			anchorKey: "assistant-1",
+			offsetPx: 240,
 		});
 		expect(result.effects.map((effect) => effect.type)).not.toContain("RevealTail");
+	});
+
+	it("stores the captured visible anchor offset instead of raw scroll offset", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: baseRows,
+		});
+
+		const detached = reduceTranscriptViewportEvent(initial, {
+			type: "UserScroll",
+			sessionId: "session-1",
+			generation: initial.generation,
+			measurement: {
+				scrollOffset: 240,
+				scrollSize: 1200,
+				viewportSize: 300,
+			},
+			anchorKey: "assistant-1",
+			anchorOffsetPx: 12,
+		});
+
+		expect(detached.state.anchor).toEqual({
+			type: "row",
+			rowKey: "assistant-1",
+			edge: "start",
+			offsetPx: 12,
+		});
 	});
 
 	it("uses send as an explicit follow override while detached", () => {
@@ -308,6 +336,64 @@ describe("TranscriptViewportController", () => {
 			targetKey: "user-2",
 			align: "end",
 			reason: "explicit-reveal",
+		});
+	});
+
+	it("keeps following the tail when a row resizes while attached", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: baseRows,
+		});
+
+		const result = reduceTranscriptViewportEvent(initial, {
+			type: "RowResized",
+			sessionId: "session-1",
+			generation: initial.generation,
+			rowKey: "assistant-1",
+		});
+
+		expect(result.state.follow).toBe("following");
+		expect(result.effects).toContainEqual({
+			type: "RevealTail",
+			sessionId: "session-1",
+			generation: initial.generation,
+			force: false,
+			reason: "rows-changed-following",
+		});
+	});
+
+	it("preserves the captured row anchor when a row resizes while detached", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: baseRows,
+		});
+		const detached = reduceTranscriptViewportEvent(initial, {
+			type: "UserScroll",
+			sessionId: "session-1",
+			generation: initial.generation,
+			measurement: {
+				scrollOffset: 240,
+				scrollSize: 1200,
+				viewportSize: 300,
+			},
+			anchorKey: "assistant-1",
+			anchorOffsetPx: 18,
+		}).state;
+
+		const result = reduceTranscriptViewportEvent(detached, {
+			type: "RowResized",
+			sessionId: "session-1",
+			generation: detached.generation,
+			rowKey: "assistant-1",
+		});
+
+		expect(result.state.follow).toBe("detached");
+		expect(result.effects).toContainEqual({
+			type: "PreserveAnchor",
+			sessionId: "session-1",
+			generation: detached.generation,
+			anchorKey: "assistant-1",
+			offsetPx: 18,
 		});
 	});
 

@@ -21,6 +21,7 @@ import DiffHunkActionButtons from "./diff-hunk-action-buttons.svelte";
  * Diff view style options.
  */
 export type DiffViewStyle = "split" | "unified";
+export type ReviewDiffDensity = "default" | "compact";
 
 /**
  * Callback for accept/reject hunk actions.
@@ -33,6 +34,18 @@ export type HunkActionCallback = (
 	action: "accept" | "reject",
 	hunkOldContent: string
 ) => void;
+
+const compactReviewDiffUnsafeCSS = `
+[data-code] {
+  font-size: 11px;
+  line-height: 1.35;
+  padding-bottom: 4px !important;
+}
+`;
+
+function resolveReviewDiffUnsafeCSS(density: ReviewDiffDensity): string {
+	return density === "compact" ? compactReviewDiffUnsafeCSS : "";
+}
 
 /**
  * Metadata for line annotations used in accept/reject UI.
@@ -290,7 +303,8 @@ export class ReviewDiffViewState {
 		diffData: ReviewDiffData,
 		container: HTMLElement,
 		_onStyleChange?: (style: DiffViewStyle) => void,
-		onHunkAction?: HunkActionCallback
+		onHunkAction?: HunkActionCallback,
+		density: ReviewDiffDensity = "default"
 	): Promise<void> {
 		this.onHunkAction = onHunkAction ?? null;
 		// Ensure theme is registered and AWAIT completion before rendering
@@ -336,7 +350,13 @@ export class ReviewDiffViewState {
 		// Create FileDiff instance with full file rendering options
 		this.fileDiffInstance = new FileDiff<AnnotationMetadata>(
 			Object.assign(
-				buildPierreDiffOptions<AnnotationMetadata>(this.themeType, this.diffStyle, "wrap", false),
+				buildPierreDiffOptions<AnnotationMetadata>(
+					this.themeType,
+					this.diffStyle,
+					"wrap",
+					false,
+					resolveReviewDiffUnsafeCSS(density)
+				),
 				{
 					// Use native line-info separator (no custom buttons)
 					// Don't expand all unchanged by default - let user click to expand

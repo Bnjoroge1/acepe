@@ -117,7 +117,27 @@ function createStreamingMessageWithTrailingBlocks(text: string): AssistantMessag
 	};
 }
 
+function createThoughtAndMessage(): AssistantMessage {
+	return {
+		chunks: [
+			{ type: "thought", block: { type: "text", text: "checking the readme" } },
+			{ type: "message", block: { type: "text", text: "Done." } },
+		],
+	};
+}
+
 describe("AssistantMessage thinking auto-scroll", () => {
+	it("shows completed thinking blocks even when answer text exists", () => {
+		const view = render(AssistantMessageComponent, {
+			message: createThoughtAndMessage(),
+			isStreaming: false,
+		});
+
+		expect(view.getByTestId("agent-tool-thinking-stub")).toBeTruthy();
+		expect(view.getByText("Thought")).toBeTruthy();
+		expect(view.getByText("Done.")).toBeTruthy();
+	});
+
 	it("shows seconds in the thinking header while streaming and after completion", () => {
 		const streamingView = render(AssistantMessageComponent, {
 			message: createThoughtMessageWithDuration(3_200),

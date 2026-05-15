@@ -125,6 +125,16 @@ function segmentText(entry: TranscriptEntry): string {
 	return text;
 }
 
+function assistantText(entry: TranscriptEntry): string {
+	let text = "";
+	for (const segment of entry.segments) {
+		if (segment.kind === "text") {
+			text += segment.text;
+		}
+	}
+	return text;
+}
+
 function sessionUserText(entry: Extract<SessionEntry, { type: "user" }>): string {
 	const content = entry.message.content;
 	if (content.type === "text") {
@@ -181,7 +191,7 @@ function createRowsFromGraph(graph: SessionStateGraph): readonly AgentPanelDispl
 			continue;
 		}
 		if (entry.role === "assistant") {
-			const canonicalText = segmentText(entry);
+			const canonicalText = assistantText(entry);
 			rows.push({
 				id: entry.entryId,
 				type: "assistant",

@@ -99,6 +99,7 @@ async fn main() {
             text: "Hello, this is a test message from the CLI tool.".to_string(),
         }],
         stream: Some(true),
+        attempt_id: None,
     };
 
     println!(

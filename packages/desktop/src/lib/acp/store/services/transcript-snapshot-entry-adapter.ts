@@ -82,7 +82,7 @@ export function convertTranscriptEntryToSessionEntry(
 			type: "assistant",
 			message: {
 				chunks: entry.segments.map((segment) => ({
-					type: "message" as const,
+					type: segment.kind === "thought" ? ("thought" as const) : ("message" as const),
 					block: toContentBlock(segment.text),
 				})),
 			},
@@ -116,7 +116,7 @@ export function appendTranscriptSegmentToSessionEntry(
 	if (entry.type === "assistant") {
 		const nextChunks = entry.message.chunks.concat([
 			{
-				type: "message",
+				type: segment.kind === "thought" ? "thought" : "message",
 				block: toContentBlock(segment.text),
 			},
 		]);

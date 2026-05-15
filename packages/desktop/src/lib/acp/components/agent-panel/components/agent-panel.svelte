@@ -5,8 +5,10 @@ import {
 	type AgentPanelSceneEntryModel,
 	type TokenRevealCss,
 } from "@acepe/ui/agent-panel";
+import { Colors } from "@acepe/ui/colors";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
+import XIcon from "@lucide/svelte/icons/x";
 import { Clock } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
@@ -46,6 +48,7 @@ import {
 	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,
 	AgentPanelPlanHeader as SharedPlanHeader,
 } from "@acepe/ui/agent-panel";
+import * as Dialog from "@acepe/ui/dialog";
 import PlanDialog from "../../plan-dialog.svelte";
 import { getMessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
 import type { ThreadWithEntries } from "../../../logic/todo-state.svelte.js";
@@ -1209,6 +1212,16 @@ const clampedReviewFileIndex = $derived.by(() => {
 	return Math.min(reviewFileIndex, fileCount - 1);
 });
 
+let reviewDialogOpen = $state(false);
+let reviewDialogFilesState = $state<ModifiedFilesState | null>(null);
+let reviewDialogFileIndex = $state(0);
+
+const clampedReviewDialogFileIndex = $derived.by(() => {
+	const fileCount = reviewDialogFilesState?.fileCount ?? 0;
+	if (fileCount === 0) return 0;
+	return Math.min(Math.max(reviewDialogFileIndex, 0), fileCount - 1);
+});
+
 // Add embedded pane widths (plan sidebar, review) when expanded
 const effectiveWidth = $derived.by(() =>
 	resolveAgentPanelEffectiveWidth({
@@ -1302,6 +1315,21 @@ const modifiedFilesState = $derived.by<ModifiedFilesState | null>(() => {
 
 function handleEnterReviewMode(filesState: ModifiedFilesState): void {
 	onEnterReviewMode?.(filesState, resolveInitialReviewWorkspaceIndex(filesState, sessionId));
+}
+
+function handleOpenReviewDialog(filesState: ModifiedFilesState, fileIndex: number): void {
+	reviewDialogFilesState = filesState;
+	reviewDialogFileIndex = fileIndex;
+	reviewDialogOpen = true;
+}
+
+function handleReviewDialogOpenChange(open: boolean): void {
+	reviewDialogOpen = open;
+	if (open) {
+		return;
+	}
+	reviewDialogFilesState = null;
+	reviewDialogFileIndex = 0;
 }
 
 // Track panelId changes for tab switching detection
@@ -2138,7 +2166,8 @@ function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
 		return;
 	}
 
-	const interaction = graph.interactions.find((candidate) => candidate.id === event.entryId);
+	const semanticInteractionId = event.interactionId ?? event.entryId;
+	const interaction = graph.interactions.find((candidate) => candidate.id === semanticInteractionId);
 	if (interaction === undefined || !("Question" in interaction.payload)) {
 		toast.error("Question is no longer available.");
 		return;
@@ -2410,6 +2439,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{streamingShipData}
 			{modifiedFilesState}
 			onEnterReviewMode={handleEnterReviewMode}
+			onOpenReviewDialog={handleOpenReviewDialog}
 			onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
 			{createPrLabel}
 			onMergePr={(strategy) => void handleMergePr(strategy)}
@@ -2625,6 +2655,44 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		{/if}
 	{/snippet}
 </AgentPanelShell>
+
+<Dialog.Root open={reviewDialogOpen} onOpenChange={handleReviewDialogOpenChange}>
+	<Dialog.Content
+		class="h-[min(86vh,860px)] w-[min(94vw,1180px)] max-w-none overflow-visible p-1"
+		showCloseButton={false}
+	>
+		<Dialog.Title class="sr-only">Review changes</Dialog.Title>
+		<Dialog.Close
+			aria-label="Close review"
+			class="review-dialog-close absolute right-0 top-0 z-30 inline-flex size-5 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border border-border/70 bg-popover text-muted-foreground/70 shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+			style="--review-dialog-close-hover: {Colors.red};"
+		>
+			<XIcon class="size-3" />
+		</Dialog.Close>
+		{#if reviewDialogFilesState}
+			<AgentPanelReviewWorkspace
+				{sessionId}
+				reviewFilesState={reviewDialogFilesState}
+				selectedFileIndex={clampedReviewDialogFileIndex}
+				projectPath={sessionProjectPath}
+				isActive={reviewDialogOpen}
+				showHeader={false}
+				compact={true}
+				diffDensity="compact"
+				onClose={() => handleReviewDialogOpenChange(false)}
+				onFileIndexChange={(index) => (reviewDialogFileIndex = index)}
+			/>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>
+
+<style>
+	.review-dialog-close:hover {
+		color: var(--review-dialog-close-hover);
+		border-color: color-mix(in srgb, var(--review-dialog-close-hover) 55%, transparent);
+		background-color: color-mix(in srgb, var(--review-dialog-close-hover) 10%, var(--accent));
+	}
+</style>
 
 <AgentPanelWorktreeCloseConfirmPopover
 	bind:open={worktreeCloseConfirming}

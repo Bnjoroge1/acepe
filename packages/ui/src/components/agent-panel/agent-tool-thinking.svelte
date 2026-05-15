@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import { CaretRight } from "phosphor-svelte";
-	import ThinkingDotMatrix from "./thinking-dot-matrix.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
@@ -68,9 +67,13 @@
 	{/if}
 
 	{#if !collapsed && children}
-		<div class="mt-2 flex min-w-0 items-stretch gap-3">
-			<ThinkingDotMatrix {status} />
-			<div class="min-w-0 flex-1">
+		<div class="mt-2 flex min-w-0 items-stretch gap-2 text-xs leading-relaxed">
+			<div
+				data-testid="thinking-block-line"
+				class="w-px shrink-0 self-stretch rounded-full bg-border/70"
+				aria-hidden="true"
+			></div>
+			<div data-testid="thinking-block-content" class="min-w-0 flex-1 text-xs leading-relaxed">
 				{@render children()}
 			</div>
 		</div>

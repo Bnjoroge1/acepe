@@ -1,6 +1,8 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import cursorDarkThemeJson from "../../../../desktop/static/themes/cursor.theme.json";
+import cursorLightThemeJson from "../../../../desktop/static/themes/cursor-light.theme.json";
 import StreamdownMarkdown from "./streamdown-markdown.svelte";
 
 vi.mock("svelte", async () => {
@@ -15,8 +17,36 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
+beforeEach(() => {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn((input: RequestInfo | URL) => {
+			const href =
+				typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			if (href.endsWith("/themes/cursor.theme.json")) {
+				return Promise.resolve(
+					new Response(JSON.stringify(cursorDarkThemeJson), {
+						headers: { "Content-Type": "application/json" },
+						status: 200,
+					})
+				);
+			}
+			if (href.endsWith("/themes/cursor-light.theme.json")) {
+				return Promise.resolve(
+					new Response(JSON.stringify(cursorLightThemeJson), {
+						headers: { "Content-Type": "application/json" },
+						status: 200,
+					})
+				);
+			}
+			return Promise.resolve(new Response("", { status: 404 }));
+		})
+	);
+});
+
 afterEach(() => {
 	cleanup();
+	vi.unstubAllGlobals();
 });
 
 describe("StreamdownMarkdown", () => {
@@ -90,6 +120,27 @@ describe("StreamdownMarkdown", () => {
 		);
 	});
 
+	it("renders highlighted code blocks with a polished language header", async () => {
+		const { container } = render(StreamdownMarkdown, {
+			markdown: "```go\npackage main\nfunc main() {}\n```",
+		});
+
+		await waitFor(() => {
+			expect(container.querySelector("[data-acepe-code-language='go']")).not.toBeNull();
+		});
+
+		expect(container.querySelector("[data-acepe-code-language='go']")?.textContent).toContain("Go");
+		expect(
+			container.querySelector("[data-acepe-code-language='go'] img")?.getAttribute("src")
+		).toContain("/svgs/icons/go.svg");
+
+		await waitFor(() => {
+			expect(container.querySelector("[data-acepe-code-highlighted='true']")).not.toBeNull();
+		});
+
+		expect(container.querySelector(".shiki span[style]")).not.toBeNull();
+	});
+
 	it("renders Acepe's code copy button instead of Streamdown's built-in control", async () => {
 		const writeText = vi.fn(() => Promise.resolve());
 		Object.defineProperty(navigator, "clipboard", {
@@ -145,6 +196,20 @@ describe("StreamdownMarkdown", () => {
 		});
 
 		expect(container.querySelector('[data-streamdown="unordered-list"]')).not.toBeNull();
+	});
+
+	it("renders GFM pipe tables", async () => {
+		const { container } = render(StreamdownMarkdown, {
+			markdown: "| Name | Status |\n| --- | --- |\n| Tables | Working |",
+		});
+
+		await waitFor(() => {
+			expect(container.querySelector("table")).not.toBeNull();
+		});
+
+		expect(container.querySelector(".table-wrapper table")).not.toBeNull();
+		expect(container.querySelector("th")?.textContent).toBe("Name");
+		expect(container.querySelector("td")?.textContent).toBe("Tables");
 	});
 
 	it("uses Acepe's word reveal animation while streaming smoothly", async () => {

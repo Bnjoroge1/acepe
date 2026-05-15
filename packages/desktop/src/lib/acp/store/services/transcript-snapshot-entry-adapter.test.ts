@@ -20,7 +20,10 @@ describe("convertTranscriptSnapshotToSessionEntries", () => {
 					{
 						entryId: "assistant-1",
 						role: "assistant",
-						segments: [{ kind: "text", segmentId: "assistant-1:chunk:0", text: "hi" }],
+						segments: [
+							{ kind: "thought", segmentId: "assistant-1:chunk:0", text: "thinking" },
+							{ kind: "text", segmentId: "assistant-1:chunk:1", text: "hi" },
+						],
 					},
 					{
 						entryId: "tool-1",
@@ -52,7 +55,10 @@ describe("convertTranscriptSnapshotToSessionEntries", () => {
 			id: "assistant-1",
 			type: "assistant",
 			message: {
-				chunks: [{ type: "message", block: { type: "text", text: "hi" } }],
+				chunks: [
+					{ type: "thought", block: { type: "text", text: "thinking" } },
+					{ type: "message", block: { type: "text", text: "hi" } },
+				],
 			},
 			timestamp,
 		});
